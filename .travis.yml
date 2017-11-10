@@ -1,0 +1,22 @@
+sudo: required
+
+language: go
+
+services:
+  - docker
+
+go:
+  - 1.9.1
+  - master
+  - tip
+
+before_install:
+  - go get -u github.com/golang/lint/golint
+
+script:
+  - make
+  - make test
+
+after_success:
+  - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+  - go version | grep -q go1.9.1 && make push && make push-latest
