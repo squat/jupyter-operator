@@ -11,7 +11,7 @@ const (
 	notebookContainerName                = "notebook"
 	notebookPort                         = 8888
 	notebookPortName                     = "notebook-port"
-	notebookNameTemplate                 = "jupyter-operator-%s"
+	notebookNameTemplate                 = "jupyter-notebook-%s"
 	notebookIngressTLSSecretNameTemplate = "%s-tls"
 	notebookPasswordKey                  = "password"
 	notebookTLSMountPath                 = "/var/lib/tls"
