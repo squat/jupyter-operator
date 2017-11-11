@@ -1,0 +1,14 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: jupyter-operator
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: jupyter-operator
+    spec:
+      containers:
+      - name: jupyter-operator
+        image: squat/jupyter-operator
