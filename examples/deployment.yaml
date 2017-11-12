@@ -2,6 +2,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: jupyter-operator
+  namespace: default
 spec:
   replicas: 1
   template:
@@ -12,3 +13,5 @@ spec:
       containers:
       - name: jupyter-operator
         image: squat/jupyter-operator
+        args:
+        - --namespace=default

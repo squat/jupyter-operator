@@ -16,19 +16,25 @@ It configures TLS certificates for the Notebook server and exposes the applicati
 
 ## Usage
 
+### Create the RBAC resources for the operator
+
+```sh
+kubectl create -f example/rbac
+```
+
 ### Deploy the Jupyter Operator
 
 ```sh
 kubectl create -f examples/deployment.yaml
 ```
 
-### Create a Notebook
+### Create a notebook
 
 ```sh
 kubectl create -f examples/notebook.yaml
 ```
 
-### Access the Notebook
+### Access the notebook
 
 Resolve DNS for `example-notebook.example.com` as the Kubernetes cluster, e.g. edit `/etc/hosts`:
 ```sh
