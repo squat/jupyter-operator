@@ -32,7 +32,7 @@ func (c *Controller) ingressReconciler(n *jupyterv1.Notebook) reconciler {
 		r.reconcile = func() error {
 			return k8sutil.CreateOrUpdateIngress(c.client.ExtensionsV1beta1().Ingresses(n.Namespace), c.ingressLister, ing)
 		}
-		if n.Spec.TLS == nil || *n.Spec.TLS == jupyterv1.NotebookTLSAcme {
+		if n.Spec.TLS != nil && *n.Spec.TLS == jupyterv1.NotebookTLSAcme {
 			r.wait = func() error {
 				return k8sutil.WaitForIngressTLSSecret(c.secretLister, c.logger, n)
 			}
