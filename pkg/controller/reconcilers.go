@@ -11,22 +11,23 @@ import (
 )
 
 type reconciler struct {
-	reconcile func() error
-	wait      func() error
+	reconcile    func() error
+	resourceType reflect.Type
+	wait         func() error
 }
 
-func (c *Controller) reconcilers(n *jupyterv1.Notebook) map[reflect.Type]reconciler {
-	return map[reflect.Type]reconciler{
-		reflect.TypeOf(&extensionsv1beta1.Ingress{}): c.ingressReconciler(n),
-		reflect.TypeOf(&corev1.Pod{}):                c.podReconciler(n),
-		reflect.TypeOf(&corev1.Secret{}):             c.secretReconciler(n),
-		reflect.TypeOf(&corev1.Service{}):            c.serviceReconciler(n),
+func (c *Controller) reconcilers(n *jupyterv1.Notebook) []reconciler {
+	return []reconciler{
+		c.serviceReconciler(n),
+		c.secretReconciler(n),
+		c.podReconciler(n),
+		c.ingressReconciler(n),
 	}
 
 }
 
 func (c *Controller) ingressReconciler(n *jupyterv1.Notebook) reconciler {
-	r := reconciler{}
+	r := reconciler{resourceType: reflect.TypeOf(&extensionsv1beta1.Ingress{})}
 	if ingressShouldExist(n) {
 		ing := k8sutil.CalculateIngress(n)
 		r.reconcile = func() error {
@@ -44,7 +45,7 @@ func (c *Controller) ingressReconciler(n *jupyterv1.Notebook) reconciler {
 }
 
 func (c *Controller) podReconciler(n *jupyterv1.Notebook) reconciler {
-	r := reconciler{}
+	r := reconciler{resourceType: reflect.TypeOf(&corev1.Pod{})}
 	if podShouldExist(n) {
 		pod := k8sutil.CalculatePod(n)
 		r.reconcile = func() error {
@@ -58,7 +59,7 @@ func (c *Controller) podReconciler(n *jupyterv1.Notebook) reconciler {
 }
 
 func (c *Controller) secretReconciler(n *jupyterv1.Notebook) reconciler {
-	r := reconciler{}
+	r := reconciler{resourceType: reflect.TypeOf(&corev1.Secret{})}
 	if secretShouldExist(n) {
 		secret := k8sutil.CalculateSecret(n, c.Config.CACert, c.Config.Key)
 		r.reconcile = func() error {
@@ -71,7 +72,7 @@ func (c *Controller) secretReconciler(n *jupyterv1.Notebook) reconciler {
 }
 
 func (c *Controller) serviceReconciler(n *jupyterv1.Notebook) reconciler {
-	r := reconciler{}
+	r := reconciler{resourceType: reflect.TypeOf(&corev1.Service{})}
 	if serviceShouldExist(n) {
 		svc := k8sutil.CalculateService(n)
 		r.reconcile = func() error {

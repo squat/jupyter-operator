@@ -26,33 +26,31 @@ func (c *Controller) reconcileNotebookResources(n *jupyterv1.Notebook) error {
 	wg.Add(len(rs))
 	errs := make([]error, len(rs))
 
-	var i int
-	for resourceType := range rs {
-		go func(resourceType reflect.Type, r reconciler, err *error) {
+	for i := range rs {
+		go func(r reconciler, err *error) {
 			defer wg.Done()
 			// Try to reconcile the resource.
 			if r.reconcile != nil {
 				if *err = r.reconcile(); *err != nil {
 					if *err = joinErrors([]error{*err}, apierrors.IsNotFound, apierrors.IsAlreadyExists); *err != nil {
-						c.logger.Errorf("failed to reconcile %s for %s: %v", resourceType, n.Name, *err)
+						c.logger.Errorf("failed to reconcile %s for %s: %v", r.resourceType, n.Name, *err)
 						return
 					}
-					c.logger.Debugf("%s for %s is already reconciled", resourceType, n.Name)
+					c.logger.Debugf("%s for %s is already reconciled", r.resourceType, n.Name)
 					*err = nil
 				}
-				c.logger.Infof("reconciled %s for %s", resourceType, n.Name)
+				c.logger.Infof("reconciled %s for %s", r.resourceType, n.Name)
 			}
 
 			// Try to wait for the resource.
 			if r.wait != nil {
 				if *err = r.wait(); *err != nil {
-					c.logger.Errorf("failed waiting for %s for %s to be ready: %v", resourceType, n.Name, *err)
+					c.logger.Errorf("failed waiting for %s for %s to be ready: %v", r.resourceType, n.Name, *err)
 					return
 				}
-				c.logger.Infof("%s for %s is ready", resourceType, n.Name)
+				c.logger.Infof("%s for %s is ready", r.resourceType, n.Name)
 			}
-		}(resourceType, rs[resourceType], &errs[i])
-		i++
+		}(rs[i], &errs[i])
 	}
 	wg.Wait()
 	if err := joinErrors(errs); err != nil {

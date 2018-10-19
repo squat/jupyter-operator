@@ -212,16 +212,12 @@ func (c *Controller) addHandlers() {
 
 func (c *Controller) watch(stop <-chan struct{}) error {
 	ok := true
-	informers := map[reflect.Type]bool{}
 	for it := range c.informers {
-		informers[it] = cache.WaitForCacheSync(stop, c.informers[it].HasSynced)
-	}
-	for i := range informers {
-		if !informers[i] {
-			c.logger.Errorf("failed to sync %q cache", i)
+		if !cache.WaitForCacheSync(stop, c.informers[it].HasSynced) {
+			c.logger.Errorf("failed to sync %q cache", it)
 			ok = false
 		} else {
-			c.logger.Debugf("successfully synced %q cache", i)
+			c.logger.Debugf("successfully synced %q cache", it)
 		}
 	}
 	if !ok {
