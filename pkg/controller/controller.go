@@ -155,6 +155,7 @@ func (c *Controller) createCRD() error {
 		ShortNames:            jupyterv1.NotebookShortNames,
 		GetOpenAPIDefinitions: jupyterv1.GetOpenAPIDefinitions,
 	})
+	crd.Spec.Subresources = nil
 
 	_, err := c.client.APIExtensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 	return err
