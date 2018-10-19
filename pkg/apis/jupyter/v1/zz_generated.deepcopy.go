@@ -111,6 +111,11 @@ func (in *NotebookSpec) DeepCopyInto(out *NotebookSpec) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.ServiceAccountName != nil {
+		in, out := &in.ServiceAccountName, &out.ServiceAccountName
+		*out = new(string)
+		**out = **in
+	}
 	if in.TLS != nil {
 		in, out := &in.TLS, &out.TLS
 		*out = new(NotebookTLS)

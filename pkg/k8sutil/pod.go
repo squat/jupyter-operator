@@ -99,7 +99,12 @@ func CalculatePod(n *jupyterv1.Notebook) *corev1.Pod {
 			Operator: corev1.TolerationOpExists,
 		})
 	}
-	automountServiceAccountToken := false
+	var automountServiceAccountToken bool
+	var serviceAccountName string
+	if n.Spec.ServiceAccountName != nil {
+		automountServiceAccountToken = true
+		serviceAccountName = *n.Spec.ServiceAccountName
+	}
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        resourceName(n.Name),
@@ -111,6 +116,7 @@ func CalculatePod(n *jupyterv1.Notebook) *corev1.Pod {
 			AutomountServiceAccountToken: &automountServiceAccountToken,
 			Containers:                   []corev1.Container{container},
 			RestartPolicy:                corev1.RestartPolicyNever,
+			ServiceAccountName:           serviceAccountName,
 			Tolerations:                  tolerations,
 			Volumes:                      []corev1.Volume{volume},
 		},

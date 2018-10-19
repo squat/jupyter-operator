@@ -359,6 +359,13 @@ func schema_pkg_apis_jupyter_v1_NotebookSpec(ref common.ReferenceCallback) commo
 							Format:      "",
 						},
 					},
+					"serviceAccountName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ServiceAccountName assigns a Kubernetes ServiceAccount to the Notebook.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"tls": {
 						SchemaProps: spec.SchemaProps{
 							Description: "TLS strategy to use. Must be \"false\", \"acme\", or \"self-signed\". Defaults to \"self-signed\".",

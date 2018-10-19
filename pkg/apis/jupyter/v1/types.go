@@ -62,6 +62,9 @@ type NotebookSpec struct {
 	// Password to use to access the notebook.
 	// +optional
 	Password *string `json:"password,omitempty"`
+	// ServiceAccountName assigns a Kubernetes ServiceAccount to the Notebook.
+	// +optional
+	ServiceAccountName *string `json:"serviceAccountName,omitempty"`
 	// TLS strategy to use. Must be "false", "acme", or "self-signed".
 	// Defaults to "self-signed".
 	// +optional
@@ -215,6 +218,10 @@ func (n *Notebook) SetDefaults() bool {
 	}
 	if n.Spec.Password == nil {
 		n.Spec.Password = &emptyString
+		changed = true
+	}
+	if n.Spec.ServiceAccountName == nil {
+		n.Spec.ServiceAccountName = &emptyString
 		changed = true
 	}
 	if n.Spec.TLS == nil {
