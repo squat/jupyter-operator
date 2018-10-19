@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -11,7 +12,7 @@ import (
 	"github.com/squat/jupyter-operator/version"
 
 	"github.com/Sirupsen/logrus"
-	flag "github.com/spf13/pflag"
+	"github.com/spf13/pflag"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -22,11 +23,11 @@ func main() {
 		namespace  string
 		version    bool
 	}{}
-	flag.StringVarP(&flags.kubeconfig, "kubeconfig", "k", "", "path to kubeconfig")
-	flag.StringVarP(&flags.logLevel, "loglevel", "l", "info", "logging verbosity")
-	flag.StringVarP(&flags.namespace, "namespace", "n", metav1.NamespaceAll, "namespace to watch; leave empty to watch all namespaces")
-	flag.BoolVarP(&flags.version, "version", "v", false, "print version and exit")
-	flag.Parse()
+	pflag.StringVarP(&flags.kubeconfig, "kubeconfig", "k", "", "path to kubeconfig")
+	pflag.StringVarP(&flags.logLevel, "loglevel", "l", "info", "logging verbosity")
+	pflag.StringVarP(&flags.namespace, "namespace", "n", metav1.NamespaceAll, "namespace to watch; leave empty to watch all namespaces")
+	pflag.BoolVarP(&flags.version, "version", "v", false, "print version and exit")
+	pflag.Parse()
 
 	if len(os.Args) > 1 {
 		command := os.Args[1]
@@ -68,4 +69,9 @@ func main() {
 	controller := controller.New(cfg)
 	controller.Run(stop, 4)
 	os.Exit(0)
+}
+
+// Satisfy glog.
+func init() {
+	flag.Set("logtostderr", "true")
 }
