@@ -125,7 +125,7 @@ const (
 	// NotebookFlavorScipy includes popular packages from the scientific Python ecosystem.
 	// See: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-scipy-notebook
 	NotebookFlavorScipy NotebookFlavor = "scipy"
-	// NotebookTensorFlow includes popular Python deep learning libraries.
+	// NotebookFlavorTensorFlow includes popular Python deep learning libraries.
 	// See: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-tensorflow-notebook
 	NotebookFlavorTensorFlow NotebookFlavor = "tensorflow"
 	// NotebookFlavorDataScience includes includes libraries for data analysis from the Julia, Python, and R communities.
