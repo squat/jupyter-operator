@@ -13,15 +13,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kubernetes-incubator/bootkube/pkg/asset"
-	"github.com/kubernetes-incubator/bootkube/pkg/bootkube"
 	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
 )
 
 const (
 	apiOffset            = 1
 	dnsOffset            = 10
-	etcdOffset           = 15
-	bootEtcdOffset       = 20
 	defaultServiceBaseIP = "10.3.0.0"
 	defaultEtcdServers   = "https://127.0.0.1:2379"
 )
@@ -48,10 +45,8 @@ var (
 		altNames            string
 		podCIDR             string
 		serviceCIDR         string
-		selfHostKubelet     bool
 		cloudProvider       string
 		networkProvider     string
-		selfHostedEtcd      bool
 	}
 
 	imageVersions = asset.DefaultImages
@@ -66,14 +61,12 @@ func init() {
 	cmdRender.Flags().StringVar(&renderOpts.etcdCertificatePath, "etcd-certificate-path", "", "Path to an existing certificate that will be used for TLS-enabled communication between the apiserver and etcd. Must be used in conjunction with --etcd-ca-path and --etcd-private-key-path, and must have etcd configured to use TLS with matching secrets.")
 	cmdRender.Flags().StringVar(&renderOpts.etcdPrivateKeyPath, "etcd-private-key-path", "", "Path to an existing private key that will be used for TLS-enabled communication between the apiserver and etcd. Must be used in conjunction with --etcd-ca-path and --etcd-certificate-path, and must have etcd configured to use TLS with matching secrets.")
 	cmdRender.Flags().StringVar(&renderOpts.etcdServers, "etcd-servers", defaultEtcdServers, "List of etcd servers URLs including host:port, comma separated")
-	cmdRender.Flags().StringVar(&renderOpts.apiServers, "api-servers", "https://127.0.0.1:443", "List of API server URLs including host:port, commma seprated")
+	cmdRender.Flags().StringVar(&renderOpts.apiServers, "api-servers", "https://127.0.0.1:6443", "List of API server URLs including host:port, commma seprated")
 	cmdRender.Flags().StringVar(&renderOpts.altNames, "api-server-alt-names", "", "List of SANs to use in api-server certificate. Example: 'IP=127.0.0.1,IP=127.0.0.2,DNS=localhost'. If empty, SANs will be extracted from the --api-servers flag.")
 	cmdRender.Flags().StringVar(&renderOpts.podCIDR, "pod-cidr", "10.2.0.0/16", "The CIDR range of cluster pods.")
 	cmdRender.Flags().StringVar(&renderOpts.serviceCIDR, "service-cidr", "10.3.0.0/24", "The CIDR range of cluster services.")
-	cmdRender.Flags().BoolVar(&renderOpts.selfHostKubelet, "deprecated-self-hosted-kubelet", false, "(DEPRECATED) Create a self-hosted kubelet daemonset.")
 	cmdRender.Flags().StringVar(&renderOpts.cloudProvider, "cloud-provider", "", "The provider for cloud services.  Empty string for no provider")
 	cmdRender.Flags().StringVar(&renderOpts.networkProvider, "network-provider", "flannel", "CNI network provider (flannel or experimental-canal).")
-	cmdRender.Flags().BoolVar(&renderOpts.selfHostedEtcd, "experimental-self-hosted-etcd", false, "(Experimental) Create self-hosted etcd assets.")
 }
 
 func runCmdRender(cmd *cobra.Command, args []string) error {
@@ -99,10 +92,6 @@ func validateRenderOpts(cmd *cobra.Command, args []string) error {
 	}
 	if (renderOpts.etcdCAPath != "" || renderOpts.etcdCertificatePath != "" || renderOpts.etcdPrivateKeyPath != "") && (renderOpts.etcdCAPath == "" || renderOpts.etcdCertificatePath == "" || renderOpts.etcdPrivateKeyPath == "") {
 		return errors.New("You must specify either all or none of --etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path")
-	}
-	if renderOpts.etcdCertificatePath != "" && renderOpts.selfHostedEtcd {
-		return errors.New("Cannot specify --etcd-certificate-path with --experimental-self-hosted-etcd." +
-			" Self-hosted etcd + TLS will auto-generate certs based on root CA cert.")
 	}
 	if renderOpts.assetDir == "" {
 		return errors.New("Missing required flag: --asset-dir")
@@ -166,31 +155,9 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 		return nil, err
 	}
 
-	bootEtcdServiceIP, err := offsetServiceIP(serviceNet, bootEtcdOffset)
+	etcdServers, err := parseURLs(renderOpts.etcdServers)
 	if err != nil {
 		return nil, err
-	}
-
-	etcdServiceIP, err := offsetServiceIP(serviceNet, etcdOffset)
-	if err != nil {
-		return nil, err
-	}
-
-	var etcdServers []*url.URL
-	if renderOpts.selfHostedEtcd {
-		etcdServerUrl, err := url.Parse(fmt.Sprintf("https://%s:2379", etcdServiceIP))
-		if err != nil {
-			return nil, err
-		}
-		etcdServers = append(etcdServers, etcdServerUrl)
-		if renderOpts.etcdServers != defaultEtcdServers {
-			bootkube.UserOutput("--experimental-self-hosted-etcd and --service-cidr set. Overriding --etcd-servers setting (%s) with (%s) \n", etcdServers, defaultEtcdServers)
-		}
-	} else {
-		etcdServers, err = parseURLs(renderOpts.etcdServers)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	etcdUseTLS := false
@@ -216,36 +183,28 @@ func flagsToAssetConfig() (c *asset.Config, err error) {
 		}
 	}
 
-	if etcdUseTLS && etcdCACert == nil && !renderOpts.selfHostedEtcd {
-		bootkube.UserOutput("NOTE: --etcd-servers=%s but --etcd-ca-path, --etcd-certificate-path, and --etcd-private-key-path were not set. Bootkube will create etcd certificates under '%s/tls'. You must configure etcd to use these certificates before invoking 'bootkube run'.\n", renderOpts.etcdServers, renderOpts.assetDir)
-	}
-
 	// TODO: Find better option than asking users to make manual changes
 	if serviceNet.IP.String() != defaultServiceBaseIP {
 		fmt.Printf("You have selected a non-default service CIDR %s - be sure your kubelet service file uses --cluster-dns=%s\n", serviceNet.String(), dnsServiceIP.String())
 	}
 
 	return &asset.Config{
-		EtcdCACert:        etcdCACert,
-		EtcdClientCert:    etcdClientCert,
-		EtcdClientKey:     etcdClientKey,
-		EtcdServers:       etcdServers,
-		EtcdUseTLS:        etcdUseTLS,
-		CACert:            caCert,
-		CAPrivKey:         caPrivKey,
-		APIServers:        apiServers,
-		AltNames:          altNames,
-		PodCIDR:           podNet,
-		ServiceCIDR:       serviceNet,
-		APIServiceIP:      apiServiceIP,
-		BootEtcdServiceIP: bootEtcdServiceIP,
-		DNSServiceIP:      dnsServiceIP,
-		EtcdServiceIP:     etcdServiceIP,
-		SelfHostKubelet:   renderOpts.selfHostKubelet,
-		CloudProvider:     renderOpts.cloudProvider,
-		NetworkProvider:   renderOpts.networkProvider,
-		SelfHostedEtcd:    renderOpts.selfHostedEtcd,
-		Images:            imageVersions,
+		EtcdCACert:      etcdCACert,
+		EtcdClientCert:  etcdClientCert,
+		EtcdClientKey:   etcdClientKey,
+		EtcdServers:     etcdServers,
+		EtcdUseTLS:      etcdUseTLS,
+		CACert:          caCert,
+		CAPrivKey:       caPrivKey,
+		APIServers:      apiServers,
+		AltNames:        altNames,
+		PodCIDR:         podNet,
+		ServiceCIDR:     serviceNet,
+		APIServiceIP:    apiServiceIP,
+		DNSServiceIP:    dnsServiceIP,
+		CloudProvider:   renderOpts.cloudProvider,
+		NetworkProvider: renderOpts.networkProvider,
+		Images:          imageVersions,
 	}, nil
 }
 

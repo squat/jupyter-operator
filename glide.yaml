@@ -3,17 +3,17 @@ import:
 - package: github.com/Sirupsen/logrus
 - package: github.com/spf13/pflag
 - package: k8s.io/api
-  version: fe29995db37613b9c5b2a647544cf627bfa8d299
+  version: fd83cbc87e7632ccd8bbab63d2b673d4e0c631cc
   subpackages:
   - core/v1
   - extensions/v1beta1
 - package: k8s.io/apiextensions-apiserver
-  version: kubernetes-1.8.3-beta.0
+  version: kubernetes-1.12.0
   subpackages:
   - pkg/apis/apiextensions/v1beta1
   - pkg/client/clientset/clientset
 - package: k8s.io/apimachinery
-  version: 019ae5ada31de202164b118aee88ee2d14075c31
+  version: 6dd46049f39503a1fc8d65de4bd566829e95faff
   subpackages:
   - pkg/api/errors
   - pkg/api/resource
@@ -26,7 +26,7 @@ import:
   - pkg/util/validation
   - pkg/util/wait
 - package: k8s.io/client-go
-  version: v5.0.0
+  version: v9.0.0
   subpackages:
   - kubernetes
   - rest
@@ -34,11 +34,9 @@ import:
   - tools/clientcmd
 - package: github.com/squat/retry
   version: 4b5eb7bf879f65b3ba8c57f9f568782770019aca
-- package: k8s.io/code-generator
-  version: b6644f7753f281ae6b8ef94867f84b060e2f5e59
-- package: k8s.io/gengo
-  version: 70ad626ed2d7a483d89d2c4c56364d60b48ee8fc
 - package: github.com/kubernetes-incubator/bootkube
-  version: v0.8.1
+  version: v0.13.0
   subpackages:
   - pkg/tlsutil
+- package: github.com/mailru/easyjson
+  version: 60711f1a8329503b04e1c88535f419d0bb440bff

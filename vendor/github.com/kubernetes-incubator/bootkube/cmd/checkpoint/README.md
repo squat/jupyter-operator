@@ -83,4 +83,27 @@ ConfigMaps are stored using a path of:
 
 The pod checkpoint will also checkpoint itself to the disk to handle the absence of the API server.
 After a node reboot, the on-disk pod-checkpointer will take over the responsibility.
-Once it reaches the API server and finds out that it's no longer being scheduled, it will clean up itself.
+
+If the pod checkpointer reaches the API server and finds out that it's no longer being scheduled,
+it will remove all on-disk checkpoints before cleaning itself up.
+
+### RBAC Requirements
+
+By default, the pod checkpoint runs with service account credentials, checkpointing its own
+service account secret for reboots. That service account must be bound to a Role that lets the
+pod checkpoint watch for Pods with the checkpoint annotation, then save ConfigMaps and Secrets
+referenced by those Pods.
+
+```yaml
+kind: Role
+metadata:
+  name: pod-checkpointer
+  namespace: kube-system
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["secrets", "configmaps"]
+  verbs: ["get"]
+```

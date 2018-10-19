@@ -19,19 +19,27 @@ const (
 // NotebookShortNames are convenient shortnames for the notebook resource.
 var NotebookShortNames = []string{"nb", "notebook"}
 
+// Notebook is a Jupyter notebook instance that is run as a pod.
 // +genclient
 // +genclient:noStatus
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// Notebook is a Jupyter notebook instance that is run as a pod.
+// +k8s:openapi-gen=true
 type Notebook struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+	// Standard object’s metadata. More info:
+	// https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#metadata
+	// +k8s:openapi-gen=false
 	metav1.ObjectMeta `json:"metadata"`
-	Spec              NotebookSpec   `json:"spec"`
-	Status            NotebookStatus `json:"status,omitempty"`
+	// Specification of the desired behavior of the Jupyter Notebook. More info:
+	// https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#spec-and-status
+	Spec NotebookSpec `json:"spec"`
+	// Most recent observed status of the Jupyter Notebook. Read-only. More info:
+	// https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#spec-and-status
+	Status NotebookStatus `json:"status,omitempty"`
 }
 
 // NotebookSpec is the description and configuration of a notebook.
+// +k8s:openapi-gen=true
 type NotebookSpec struct {
 	// Whether or not to add a GPU resource to the notebook pod.
 	GPU bool `json:"gpu"`
@@ -76,7 +84,7 @@ const (
 // NotebookTLS defines the notebook's TLS strategy.
 type NotebookTLS string
 
-const (
+var (
 	// NotebookTLSSelfSigned means that the notebook server will serve HTTP over TLS using
 	// certificates signed by the controller. Ingress to the notebook will terminate TLS at
 	// notebook and not at the ingress controller.
@@ -86,13 +94,14 @@ const (
 	// certificates signed by the controller. The ingress resource will be annotated with
 	// kubernetes.io/tls-acme=true and the ingress controller will terminate TLS
 	// using certificates generated via LetsEncrypt. This requires kube-lego or an equivalent.
-	NotebookTLSAcme = "acme"
+	NotebookTLSAcme NotebookTLS = "acme"
 	// NotebookTLSNone means that the notebook server will serve plain HTTP with no encryption.
 	// The ingress resource will not have a TLS entry so the notebook will only be accessible over HTTP.
-	NotebookTLSNone = "none"
+	NotebookTLSNone NotebookTLS = "none"
 )
 
 // NotebookStatus describes the current status of the notebook resource.
+// +k8s:openapi-gen=true
 type NotebookStatus struct {
 	// Phase contains the current NotebookPhase of the notebook.
 	Phase NotebookPhase `json:"phase"`
@@ -149,6 +158,29 @@ func (n *Notebook) Validate() error {
 		}
 	}
 	return nil
+}
+
+// SetDefaults applies default values to the receiver Notebook.
+func (n *Notebook) SetDefaults() bool {
+	var changed bool
+	emptyString := ""
+	if n.Spec.Host == nil {
+		n.Spec.Host = &emptyString
+		changed = true
+	}
+	if n.Spec.Password == nil {
+		n.Spec.Password = &emptyString
+		changed = true
+	}
+	if n.Spec.TLS == nil {
+		n.Spec.TLS = &NotebookTLSSelfSigned
+		changed = true
+	}
+	if n.Spec.Users == nil {
+		n.Spec.Users = []string{}
+		changed = true
+	}
+	return changed
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

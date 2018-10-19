@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
+	"k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api/v1"
 )
 
 func TestSanitizeCheckpointPod(t *testing.T) {
@@ -139,13 +139,41 @@ func TestSanitizeCheckpointPod(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "Pod is already sanitized.",
+			pod: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Pod",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "podname",
+					Namespace:   "podnamespace",
+					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
+					OwnerReferences: []metav1.OwnerReference{
+						{APIVersion: "v1", Kind: "Pod", Name: "podname", UID: "pod-uid", Controller: &trueVar},
+					},
+				},
+			},
+			expected: &v1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Pod",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "podname",
+					Namespace:   "podnamespace",
+					Annotations: map[string]string{checkpointParentAnnotation: "podname"},
+					OwnerReferences: []metav1.OwnerReference{
+						{APIVersion: "v1", Kind: "Pod", Name: "podname", UID: "pod-uid", Controller: &trueVar},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range cases {
-		got, err := sanitizeCheckpointPod(tc.pod)
-		if err != nil {
-			t.Errorf("\nUnexpected error: %v\n", err)
-		}
+		got := sanitizeCheckpointPod(tc.pod)
 		if !apiequality.Semantic.DeepEqual(tc.expected, got) {
 			t.Errorf("\nFor Test: %s\n\nExpected:\n%#v\nGot:\n%#v\n", tc.desc, tc.expected, got)
 		}
@@ -320,23 +348,6 @@ func TestIsCheckpoint(t *testing.T) {
 	}
 }
 
-func TestCopyPod(t *testing.T) {
-	pod := v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "podname",
-			Namespace: "podnamespace",
-		},
-		Spec: v1.PodSpec{Containers: []v1.Container{{VolumeMounts: []v1.VolumeMount{{Name: "default-token"}}}}},
-	}
-	got, err := copyPod(&pod)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if !apiequality.Semantic.DeepEqual(pod, *got) {
-		t.Errorf("Expected:\n%#v\nGot:\n%#v", pod, got)
-	}
-}
-
 func TestPodID(t *testing.T) {
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -384,5 +395,104 @@ func TestPodIDToConfigMapPath(t *testing.T) {
 	got := podFullNameToConfigMapPath(id)
 	if expected != got {
 		t.Errorf("Expected %s Got %s", expected, got)
+	}
+}
+
+func TestPodUserAndGroup(t *testing.T) {
+	user1 := int64(1)
+	user2 := int64(2)
+	group1 := int64(10)
+	for _, tc := range []struct {
+		name    string
+		pod     *v1.Pod
+		wantUID int
+		wantGID int
+		wantErr bool
+	}{{
+		name:    "empty pod",
+		pod:     &v1.Pod{},
+		wantUID: rootUID,
+	}, {
+		name: "normal pod",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name: "container",
+				}},
+			},
+		},
+		wantUID: rootUID,
+	}, {
+		name: "pod with PodSecurityContext",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name: "container",
+				}},
+				SecurityContext: &v1.PodSecurityContext{RunAsUser: &user1, FSGroup: &group1},
+			},
+		},
+		wantUID: int(user1),
+		wantGID: int(group1),
+	}, {
+		name: "pod with Container.SecurityContext",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name:            "container",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user1},
+				}},
+			},
+		},
+		wantUID: int(user1),
+	}, {
+		name: "pod with matching SecurityContexts",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name:            "container1",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user1},
+				}, {
+					Name:            "container2",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user1},
+				}},
+				SecurityContext: &v1.PodSecurityContext{RunAsUser: &user1, FSGroup: &group1},
+			},
+		},
+		wantUID: int(user1),
+		wantGID: int(group1),
+	}, {
+		name: "pod with conflicting PodSecurityContext and SecurityContext",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name:            "container",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user1},
+				}},
+				SecurityContext: &v1.PodSecurityContext{RunAsUser: &user2},
+			},
+		},
+		wantErr: true,
+	}, {
+		name: "pod with conflicting SecurityContexts",
+		pod: &v1.Pod{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{
+					Name:            "container1",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user1},
+				}, {
+					Name:            "container2",
+					SecurityContext: &v1.SecurityContext{RunAsUser: &user2},
+				}},
+			},
+		},
+		wantErr: true,
+	}} {
+		uid, gid, err := podUserAndGroup(tc.pod)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("%s podUser() = err: %v, want: %v", tc.name, err != nil, tc.wantErr)
+		} else if !tc.wantErr && (uid != tc.wantUID || gid != tc.wantGID) {
+			t.Errorf("%s podUser() = %v, %v, want: %v, %v", tc.name, uid, gid, tc.wantUID, tc.wantGID)
+		}
 	}
 }

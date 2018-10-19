@@ -2,8 +2,9 @@ package e2e
 
 import (
 	"testing"
+	"time"
 
-	"github.com/coreos/ktestutil/testworkload"
+	"github.com/kubernetes-incubator/bootkube/e2e/internal/e2eutil/testworkload"
 )
 
 func TestSmoke(t *testing.T) {
@@ -13,7 +14,7 @@ func TestSmoke(t *testing.T) {
 	}
 	defer nginx.Delete()
 
-	if err := nginx.IsReachable(); err != nil {
+	if err := retry(60, 5*time.Second, nginx.IsReachable); err != nil {
 		t.Errorf("%s is not reachable: %v", nginx.Name, err)
 	}
 }

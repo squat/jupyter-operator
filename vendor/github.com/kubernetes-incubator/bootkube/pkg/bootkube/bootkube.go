@@ -2,19 +2,15 @@ package bootkube
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/kubernetes-incubator/bootkube/pkg/asset"
-	"github.com/kubernetes-incubator/bootkube/pkg/util/etcdutil"
 
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 const assetTimeout = 20 * time.Minute
-
-var kubeConfig clientcmd.ClientConfig
 
 var requiredPods = []string{
 	"pod-checkpointer",
@@ -26,25 +22,28 @@ var requiredPods = []string{
 type Config struct {
 	AssetDir        string
 	PodManifestPath string
+	Strict          bool
 }
 
 type bootkube struct {
 	podManifestPath string
 	assetDir        string
+	strict          bool
 }
 
 func NewBootkube(config Config) (*bootkube, error) {
 	return &bootkube{
 		assetDir:        config.AssetDir,
 		podManifestPath: config.PodManifestPath,
+		strict:          config.Strict,
 	}, nil
 }
 
 func (b *bootkube) Run() error {
 	// TODO(diegs): create and share a single client rather than the kubeconfig once all uses of it
 	// are migrated to client-go.
-	kubeConfig = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: filepath.Join(b.assetDir, asset.AssetPathKubeConfig)},
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: filepath.Join(b.assetDir, asset.AssetPathAdminKubeConfig)},
 		&clientcmd.ConfigOverrides{})
 
 	bcp := NewBootstrapControlPlane(b.assetDir, b.podManifestPath)
@@ -68,32 +67,12 @@ func (b *bootkube) Run() error {
 		return err
 	}
 
-	if err = CreateAssets(filepath.Join(b.assetDir, asset.AssetPathManifests), assetTimeout); err != nil {
+	if err = CreateAssets(kubeConfig, filepath.Join(b.assetDir, asset.AssetPathManifests), assetTimeout, b.strict); err != nil {
 		return err
 	}
 
-	selfHostedEtcd, err := detectSelfHostedEtcd(b.assetDir, asset.AssetPathBootstrapEtcd)
-	if err != nil {
+	if err = WaitUntilPodsRunning(kubeConfig, requiredPods, assetTimeout); err != nil {
 		return err
-	}
-
-	if selfHostedEtcd {
-		requiredPods = append(requiredPods, "etcd-operator", "kube-dns")
-	}
-
-	if err = WaitUntilPodsRunning(requiredPods, assetTimeout); err != nil {
-		return err
-	}
-
-	if selfHostedEtcd {
-		UserOutput("Migrating to self-hosted etcd cluster...\n")
-
-		svcPath := filepath.Join(b.assetDir, asset.AssetPathBootstrapEtcdService)
-		crdPath := filepath.Join(b.assetDir, asset.AssetPathMigrateEtcdCluster)
-		err = etcdutil.Migrate(kubeConfig, b.assetDir, svcPath, crdPath)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -105,17 +84,4 @@ func (b *bootkube) Run() error {
 // should go to stderr.
 func UserOutput(format string, a ...interface{}) {
 	fmt.Printf(format, a...)
-}
-
-// detectSelfHostedEtcd returns true if the asset dir contains assets for bootstrap etcd.
-func detectSelfHostedEtcd(assetDir, assetPathBootstrapEtcd string) (bool, error) {
-	etcdAssetsPath := filepath.Join(assetDir, assetPathBootstrapEtcd)
-	_, err := os.Stat(etcdAssetsPath)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
 }

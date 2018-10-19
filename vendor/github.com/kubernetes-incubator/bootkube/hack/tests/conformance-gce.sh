@@ -27,7 +27,6 @@ set -euo pipefail
 #
 COREOS_CHANNEL=${COREOS_CHANNEL:-'coreos-stable'}
 WORKER_COUNT=4
-SELF_HOST_ETCD=${SELF_HOST_ETCD:-false}
 
 GCE_PREFIX=${GCE_PREFIX:-'bootkube-ci'}
 GCE_SERVICE_ACCOUNT=${GCE_SERVICE_ACCOUNT:-'bootkube-ci'}
@@ -35,7 +34,7 @@ GCE_PROJECT=${GCE_PROJECT:-coreos-gce-testing}
 
 function cleanup {
     gcloud compute instances delete --quiet --zone us-central1-a ${GCE_PREFIX}-m1 || true
-    gcloud compute firewall-rules delete --quiet ${GCE_PREFIX}-api-443 || true
+    gcloud compute firewall-rules delete --quiet ${GCE_PREFIX}-api-6443 || true
     for i in $(seq 1 ${WORKER_COUNT}); do
         gcloud compute instances delete --quiet --zone us-central1-a ${GCE_PREFIX}-w${i} || true
     done
@@ -60,13 +59,13 @@ function add_master {
         --image-project coreos-cloud --image-family ${COREOS_CHANNEL} --zone us-central1-a --machine-type n1-standard-4 --boot-disk-size=30GB
 
     gcloud compute instances add-tags --zone us-central1-a ${GCE_PREFIX}-m1 --tags ${GCE_PREFIX}-apiserver
-    gcloud compute firewall-rules create ${GCE_PREFIX}-api-443 --target-tags=${GCE_PREFIX}-apiserver --allow tcp:443
+    gcloud compute firewall-rules create ${GCE_PREFIX}-api-6443 --target-tags=${GCE_PREFIX}-apiserver --allow tcp:6443
 
     gcloud compute instances add-metadata ${GCE_PREFIX}-m1 --zone us-central1-a --metadata-from-file ssh-keys=/root/.ssh/gce-format.pub
 
     MASTER_IP=$(gcloud compute instances list ${GCE_PREFIX}-m1 --format=json | jq --raw-output '.[].networkInterfaces[].accessConfigs[].natIP')
     cd /build/bootkube/hack/quickstart && SSH_OPTS="-o StrictHostKeyChecking=no" \
-        CLUSTER_DIR=/build/cluster SELF_HOST_ETCD=${SELF_HOST_ETCD} ./init-master.sh ${MASTER_IP}
+        CLUSTER_DIR=/build/cluster ./init-master.sh ${MASTER_IP}
 }
 
 function add_workers {
@@ -94,7 +93,7 @@ if [ "${IN_CONTAINER}" == true ]; then
     init
     add_master
     add_workers
-    KUBECONFIG=/etc/kubernetes/kubeconfig WORKER_COUNT=${WORKER_COUNT} /build/bootkube/hack/tests/conformance-test.sh ${MASTER_IP} 22 /root/.ssh/id_rsa
+    KUBECONFIG=/etc/kubernetes/kubeconfig-admin WORKER_COUNT=${WORKER_COUNT} /build/bootkube/hack/tests/conformance-test.sh ${MASTER_IP} 22 /root/.ssh/id_rsa
 else
     BUILD_ROOT=${BUILD_ROOT:-}
     if [ -z "$BUILD_ROOT" ]; then
@@ -115,6 +114,6 @@ else
 
     #TODO(pb): See if there is a way to make the --inherit-env option replace
     #passing all the variables manually. 
-    sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.8.4 --exec /bin/bash -- -c \
-        "IN_CONTAINER=true COREOS_CHANNEL=${COREOS_CHANNEL} GCE_PREFIX=${GCE_PREFIX} GCE_SERVICE_ACCOUNT=${GCE_SERVICE_ACCOUNT} GCE_PROJECT=${GCE_PROJECT} SELF_HOST_ETCD=${SELF_HOST_ETCD} /build/bootkube/hack/tests/$(basename $0)"
+    sudo rkt run --insecure-options=image ${RKT_OPTS} docker://golang:1.9.4 --exec /bin/bash -- -c \
+        "IN_CONTAINER=true COREOS_CHANNEL=${COREOS_CHANNEL} GCE_PREFIX=${GCE_PREFIX} GCE_SERVICE_ACCOUNT=${GCE_SERVICE_ACCOUNT} GCE_PROJECT=${GCE_PROJECT} /build/bootkube/hack/tests/$(basename $0)"
 fi

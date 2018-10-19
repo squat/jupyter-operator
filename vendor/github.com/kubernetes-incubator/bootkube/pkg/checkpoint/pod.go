@@ -1,17 +1,15 @@
 package checkpoint
 
 import (
-	"io/ioutil"
-	"os"
+	"errors"
 	"path/filepath"
 	"strings"
 
 	"github.com/golang/glog"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/api/v1"
 )
 
 var (
@@ -30,8 +28,13 @@ var (
 	)
 )
 
-func sanitizeCheckpointPod(cp *v1.Pod) (*v1.Pod, error) {
+func sanitizeCheckpointPod(cp *v1.Pod) *v1.Pod {
 	trueVar := true
+
+	// Check if this is already sanitized, i.e. it was read back from a checkpoint on disk.
+	if _, ok := cp.Annotations[checkpointParentAnnotation]; ok {
+		return cp
+	}
 
 	// Keep same name, namespace, and labels as parent.
 	cp.ObjectMeta = metav1.ObjectMeta{
@@ -75,7 +78,7 @@ func sanitizeCheckpointPod(cp *v1.Pod) (*v1.Pod, error) {
 	// Clear pod status
 	cp.Status.Reset()
 
-	return cp, nil
+	return cp
 }
 
 // isPodCheckpointer returns true if the manifest is the pod checkpointer (has the same name as the parent).
@@ -144,14 +147,6 @@ func isCheckpoint(pod *v1.Pod) bool {
 	return ok
 }
 
-func copyPod(pod *v1.Pod) (*v1.Pod, error) {
-	obj, err := api.Scheme.Copy(pod)
-	if err != nil {
-		return nil, err
-	}
-	return obj.(*v1.Pod), nil
-}
-
 func podFullName(pod *v1.Pod) string {
 	return pod.Namespace + "/" + pod.Name
 }
@@ -164,10 +159,46 @@ func podFullNameToActiveCheckpointPath(id string) string {
 	return filepath.Join(activeCheckpointPath, strings.Replace(id, "/", "-", -1)+".json")
 }
 
-func writeAndAtomicRename(path string, data []byte, perm os.FileMode) error {
-	tmpfile := filepath.Join(filepath.Dir(path), "."+filepath.Base(path))
-	if err := ioutil.WriteFile(tmpfile, data, perm); err != nil {
-		return err
+// ErrorConflictingSecurityContexts is returned when a pod has a PodSecurityContext and/or
+// SecurityContext(s) that have conflicting RunAsUser values.
+var ErrorConflictingSecurityContexts = errors.New("pod and/or container(s) have conflicting SecurityContext.RunAsUser values")
+
+// podUserAndGroup returns the ids of the user and group for the pod by scanning the
+// PodSecurityContext and the SecurityContexts of its Containers. Returns
+// ErrorConflictingSecurityContexts if the pod and/or its containers have different users/groups
+// set.
+func podUserAndGroup(pod *v1.Pod) (int, int, error) {
+	var uid, gid *int64
+
+	// Check PodSecurityContext.
+	if psc := pod.Spec.SecurityContext; psc != nil {
+		uid = psc.RunAsUser
+		gid = psc.FSGroup
 	}
-	return os.Rename(tmpfile, path)
+
+	// Check Container SecurityContexts. If there is a conflict return error.
+	// TODO(diegs): maybe resolve conflicts by returning per-container uids.
+	for _, c := range pod.Spec.Containers {
+		if sc := c.SecurityContext; sc != nil {
+			if sc.RunAsUser != nil {
+				// Fail if a different user was previously seen.
+				if uid != nil && *uid != *sc.RunAsUser {
+					return -1, -1, ErrorConflictingSecurityContexts
+				}
+				uid = sc.RunAsUser
+			}
+		}
+	}
+
+	// Return root uid/gid by default.
+	if uid == nil {
+		tmpUID := int64(rootUID)
+		uid = &tmpUID
+	}
+	if gid == nil {
+		tmpGID := int64(rootGID)
+		gid = &tmpGID
+	}
+
+	return int(*uid), int(*gid), nil
 }

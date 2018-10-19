@@ -1,16 +1,27 @@
-export GO15VENDOREXPERIMENT:=1
 export CGO_ENABLED:=0
 export GOARCH:=amd64
+export PATH:=$(PATH):$(PWD)
 
+SHELL:=$(shell which bash)
 LOCAL_OS:=$(shell uname | tr A-Z a-z)
 GOFILES:=$(shell find . -name '*.go' | grep -v -E '(./vendor)')
-GOPATH_BIN:=$(shell echo ${GOPATH} | awk 'BEGIN { FS = ":" }; { print $1 }')/bin
 LDFLAGS=-X github.com/kubernetes-incubator/bootkube/pkg/version.Version=$(shell $(CURDIR)/build/git-version.sh)
+TERRAFORM:=$(shell command -v terraform 2> /dev/null)
 
 all: \
+	_output/bin/$(LOCAL_OS)/bootkube \
+	_output/bin/linux/bootkube \
+	_output/bin/linux/checkpoint
+
+cross: \
 	_output/bin/linux/bootkube \
 	_output/bin/darwin/bootkube \
 	_output/bin/linux/checkpoint \
+	_output/bin/linux/amd64/checkpoint \
+	_output/bin/linux/arm/checkpoint \
+	_output/bin/linux/arm64/checkpoint \
+	_output/bin/linux/ppc64le/checkpoint \
+	_output/bin/linux/s390x/checkpoint
 
 release: \
 	clean \
@@ -18,16 +29,25 @@ release: \
 	_output/release/bootkube.tar.gz \
 
 check:
-	@find . -name vendor -prune -o -name '*.go' -exec gofmt -s -d {} +
+	@gofmt -l -s $(GOFILES) | read; if [ $$? == 0 ]; then gofmt -s -d $(GOFILES); exit 1; fi
+ifdef TERRAFORM
+	$(TERRAFORM) fmt -check ; if [ ! $$? -eq 0 ]; then exit 1; fi
+else
+	@echo -e "\e[91mSkipping terraform lint. terraform binary not available.\e[0m"
+endif
 	@go vet $(shell go list ./... | grep -v '/vendor/')
+	@./scripts/verify-gopkg.sh
 	@go test -v $(shell go list ./... | grep -v '/vendor/\|/e2e')
 
-install: _output/bin/$(LOCAL_OS)/bootkube
-	cp $< $(GOPATH_BIN)
+install:
+	go install -ldflags "$(LDFLAGS)" ./cmd/bootkube
 
+_output/bin/%: GOOS=$(word 1, $(subst /, ,$*))
+_output/bin/%: GOARCH=$(word 2, $(subst /, ,$*))
+_output/bin/%: GOARCH:=amd64  # default to amd64 to support release scripts
 _output/bin/%: $(GOFILES)
 	mkdir -p $(dir $@)
-	GOOS=$(word 1, $(subst /, ,$*)) go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $@ github.com/kubernetes-incubator/bootkube/cmd/$(notdir $@)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $@ github.com/kubernetes-incubator/bootkube/cmd/$(notdir $@)
 
 _output/release/bootkube.tar.gz: _output/bin/linux/bootkube _output/bin/darwin/bootkube _output/bin/linux/checkpoint
 	mkdir -p $(dir $@)
@@ -53,11 +73,13 @@ conformance-%: clean all
 	@sleep 30 # Give addons a little time to start
 	@cd hack/$*-node && ./conformance-test.sh
 
+#TODO: curl/sed "vendored" libs is gross - come up with something better
 vendor:
-	@glide update --strip-vendor
-	@glide-vc
-	@CGO_ENABLED=1 go get github.com/coreos/license-bill-of-materials
-	@license-bill-of-materials ./cmd/bootkube ./cmd/checkpoint > bill-of-materials.json
+	@dep ensure -v
+	@curl https://raw.githubusercontent.com/kubernetes/kubernetes/v1.11.0/pkg/kubelet/util/util.go | sed 's/^package util$$/package internal/' > pkg/checkpoint/internal/util.go
+	@curl https://raw.githubusercontent.com/kubernetes/kubernetes/v1.11.0/pkg/kubelet/util/util_unix.go | sed 's/^package util$$/package internal/' > pkg/checkpoint/internal/util_unix.go
+	@CGO_ENABLED=1 go build -o _output/bin/license-bill-of-materials ./vendor/github.com/coreos/license-bill-of-materials
+	@./_output/bin/license-bill-of-materials ./cmd/bootkube ./cmd/checkpoint > bill-of-materials.json
 
 clean:
 	rm -rf _output

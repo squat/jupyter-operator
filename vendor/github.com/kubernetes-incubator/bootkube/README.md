@@ -63,6 +63,11 @@ Example:
 bootkube start --asset-dir=my-cluster
 ```
 
+When `bootkube start` is creating Kuberentes resources from manifests, the following order is used:
+1. Any `Namespace` objects are created, in lexicographical order.
+1. Any `CustomResourceDefinition` objects are created, in lexicographical order.
+1. Any remaining resouces are created, in lexicographical order.
+
 ### Recover a downed cluster
 
 In the case of a partial or total control plane outage (i.e. due to lost master nodes) an experimental `recover` command can extract and write manifests from a backup location. These manifests can then be used by the `start` command to reboot the cluster. Currently recovery from a running apiserver, an external running etcd cluster, or an etcd backup taken from the self hosted etcd cluster are the methods.
@@ -77,7 +82,7 @@ See [Documentation/development.md](Documentation/development.md) for more inform
 
 Want to contribute to bootkube? Have Questions? We are looking for active participation from the community
 
-You can find us at the bootkube channel on [Kubernetes slack](https://github.com/kubernetes/community/blob/master/communication.md#social-media)
+You can find us at the `#bootkube` channel on [Kubernetes slack][slack].
 
 ## Related Links
 
@@ -86,3 +91,5 @@ You can find us at the bootkube channel on [Kubernetes slack](https://github.com
 ## License
 
 bootkube is under the Apache 2.0 license. See the [LICENSE](LICENSE) file for details.
+
+[slack]: https://github.com/kubernetes/community/tree/master/communication#social-media

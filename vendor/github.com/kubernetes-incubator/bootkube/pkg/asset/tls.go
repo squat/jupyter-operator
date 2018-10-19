@@ -32,7 +32,7 @@ func newTLSAssets(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey, altNames 
 		return assets, err
 	}
 
-	kubeletKey, kubeletCert, err := newKubeletKeyAndCert(caCert, caPrivKey)
+	adminKey, adminCert, err := newAdminKeyAndCert(caCert, caPrivKey)
 	if err != nil {
 		return assets, err
 	}
@@ -44,8 +44,8 @@ func newTLSAssets(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey, altNames 
 		{Name: AssetPathAPIServerCert, Data: tlsutil.EncodeCertificatePEM(apiCert)},
 		{Name: AssetPathServiceAccountPrivKey, Data: tlsutil.EncodePrivateKeyPEM(saPrivKey)},
 		{Name: AssetPathServiceAccountPubKey, Data: saPubKey},
-		{Name: AssetPathKubeletKey, Data: tlsutil.EncodePrivateKeyPEM(kubeletKey)},
-		{Name: AssetPathKubeletCert, Data: tlsutil.EncodeCertificatePEM(kubeletCert)},
+		{Name: AssetPathAdminKey, Data: tlsutil.EncodePrivateKeyPEM(adminKey)},
+		{Name: AssetPathAdminCert, Data: tlsutil.EncodeCertificatePEM(adminCert)},
 	}...)
 	return assets, nil
 }
@@ -94,12 +94,9 @@ func newAPIKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey, altNa
 	return key, cert, err
 }
 
-func newKubeletKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey) (*rsa.PrivateKey, *x509.Certificate, error) {
+func newAdminKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey) (*rsa.PrivateKey, *x509.Certificate, error) {
 	// TLS organizations map to Kubernetes groups, and "system:masters"
 	// is a well-known Kubernetes group that gives a user admin power.
-	//
-	// For now, put the kubelets in this group. Later we can restrict
-	// their credentials, likely with the help of TLS bootstrapping.
 	const orgSystemMasters = "system:masters"
 
 	key, err := tlsutil.NewPrivateKey()
@@ -107,7 +104,7 @@ func newKubeletKeyAndCert(caCert *x509.Certificate, caPrivKey *rsa.PrivateKey) (
 		return nil, nil, err
 	}
 	config := tlsutil.CertConfig{
-		CommonName:   "kubelet",
+		CommonName:   "admin",
 		Organization: []string{orgSystemMasters},
 	}
 	cert, err := tlsutil.NewSignedCertificate(config, key, caCert, caPrivKey)
@@ -154,60 +151,6 @@ func newEtcdTLSAssets(etcdCACert, etcdClientCert *x509.Certificate, etcdClientKe
 		{Name: AssetPathEtcdClientCA, Data: tlsutil.EncodeCertificatePEM(etcdCACert)},
 		{Name: AssetPathEtcdClientKey, Data: tlsutil.EncodePrivateKeyPEM(etcdClientKey)},
 		{Name: AssetPathEtcdClientCert, Data: tlsutil.EncodeCertificatePEM(etcdClientCert)},
-	}...)
-
-	return assets, nil
-}
-
-// newSelfHostedEtcdTLSAssets automatically generates three suites of x509 certificates (CA, key, cert)
-// for self-hosted etcd related components. Two suites are used by etcd members' server and peer ports;
-// one is used via etcd client to talk to etcd by operator, apiserver.
-// Self-hosted etcd doesn't allow user to specify etcd certs.
-func newSelfHostedEtcdTLSAssets(etcdSvcIP, bootEtcdSvcIP string, caCert *x509.Certificate, caPrivKey *rsa.PrivateKey) (Assets, error) {
-	// TODO: This method uses tlsutil.NewSignedCertificate() which will create certs for both client and server auth.
-	//       We can limit on finer granularity.
-
-	var assets []Asset
-
-	key, cert, err := newKeyAndCert(caCert, caPrivKey, "etcd member client", []string{
-		etcdSvcIP,
-		bootEtcdSvcIP,
-		"127.0.0.1",
-		"localhost",
-		"*.kube-etcd.kube-system.svc.cluster.local",
-		"kube-etcd-client.kube-system.svc.cluster.local",
-	})
-	if err != nil {
-		return nil, err
-	}
-	assets = append(assets, []Asset{
-		{Name: AssetPathEtcdServerCA, Data: tlsutil.EncodeCertificatePEM(caCert)},
-		{Name: AssetPathEtcdServerKey, Data: tlsutil.EncodePrivateKeyPEM(key)},
-		{Name: AssetPathEtcdServerCert, Data: tlsutil.EncodeCertificatePEM(cert)},
-	}...)
-
-	key, cert, err = newKeyAndCert(caCert, caPrivKey, "etcd member peer", []string{
-		bootEtcdSvcIP,
-		"*.kube-etcd.kube-system.svc.cluster.local",
-		"kube-etcd-client.kube-system.svc.cluster.local",
-	})
-	if err != nil {
-		return nil, err
-	}
-	assets = append(assets, []Asset{
-		{Name: AssetPathEtcdPeerCA, Data: tlsutil.EncodeCertificatePEM(caCert)},
-		{Name: AssetPathEtcdPeerKey, Data: tlsutil.EncodePrivateKeyPEM(key)},
-		{Name: AssetPathEtcdPeerCert, Data: tlsutil.EncodeCertificatePEM(cert)},
-	}...)
-
-	key, cert, err = newKeyAndCert(caCert, caPrivKey, "operator etcd client", nil)
-	if err != nil {
-		return nil, err
-	}
-	assets = append(assets, []Asset{
-		{Name: AssetPathEtcdClientCA, Data: tlsutil.EncodeCertificatePEM(caCert)},
-		{Name: AssetPathEtcdClientKey, Data: tlsutil.EncodePrivateKeyPEM(key)},
-		{Name: AssetPathEtcdClientCert, Data: tlsutil.EncodeCertificatePEM(cert)},
 	}...)
 
 	return assets, nil

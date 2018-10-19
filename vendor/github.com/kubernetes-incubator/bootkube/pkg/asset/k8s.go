@@ -2,7 +2,9 @@ package asset
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"path/filepath"
 	"text/template"
 
@@ -40,6 +42,12 @@ func newStaticAssets(imageVersions ImageVersions) Assets {
 		MustCreateAssetFromTemplate(AssetPathControllerManagerDisruption, internal.ControllerManagerDisruptionTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeDNSDeployment, internal.DNSDeploymentTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathCheckpointer, internal.CheckpointerTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathCheckpointerSA, internal.CheckpointerServiceAccount, conf),
+		MustCreateAssetFromTemplate(AssetPathCheckpointerRole, internal.CheckpointerRole, conf),
+		MustCreateAssetFromTemplate(AssetPathCheckpointerRoleBinding, internal.CheckpointerRoleBinding, conf),
+		MustCreateAssetFromTemplate(AssetPathCSRApproverRoleBinding, internal.CSRApproverRoleBindingTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathCSRBootstrapRoleBinding, internal.CSRNodeBootstrapTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathCSRRenewalRoleBinding, internal.CSRRenewalRoleBindingTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeSystemSARoleBinding, internal.KubeSystemSARoleBindingTemplate, conf),
 	}
 	return assets
@@ -48,31 +56,25 @@ func newStaticAssets(imageVersions ImageVersions) Assets {
 func newDynamicAssets(conf Config) Assets {
 	assets := Assets{
 		MustCreateAssetFromTemplate(AssetPathControllerManager, internal.ControllerManagerTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathControllerManagerSA, internal.ControllerManagerServiceAccount, conf),
+		MustCreateAssetFromTemplate(AssetPathControllerManagerRB, internal.ControllerManagerClusterRoleBinding, conf),
 		MustCreateAssetFromTemplate(AssetPathAPIServer, internal.APIServerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathProxy, internal.ProxyTemplate, conf),
+		MustCreateAssetFromTemplate(AssetPathProxySA, internal.ProxyServiceAccount, conf),
+		MustCreateAssetFromTemplate(AssetPathProxyRoleBinding, internal.ProxyClusterRoleBinding, conf),
 		MustCreateAssetFromTemplate(AssetPathKubeDNSSvc, internal.DNSSvcTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathBootstrapAPIServer, internal.BootstrapAPIServerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathBootstrapControllerManager, internal.BootstrapControllerManagerTemplate, conf),
 		MustCreateAssetFromTemplate(AssetPathBootstrapScheduler, internal.BootstrapSchedulerTemplate, conf),
 	}
-	if conf.SelfHostKubelet {
-		assets = append(assets, MustCreateAssetFromTemplate(AssetPathKubelet, internal.KubeletTemplate, conf))
-	}
-	if conf.SelfHostedEtcd {
-		conf.EtcdServiceName = EtcdServiceName
-		assets = append(assets,
-			MustCreateAssetFromTemplate(AssetPathEtcdOperator, internal.EtcdOperatorTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathEtcdSvc, internal.EtcdSvcTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathKenc, internal.KencTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathBootstrapEtcd, internal.BootstrapEtcdTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathBootstrapEtcdService, internal.BootstrapEtcdSvcTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathMigrateEtcdCluster, internal.EtcdCRDTemplate, conf))
-	}
 	switch conf.NetworkProvider {
 	case NetworkFlannel:
 		assets = append(assets,
-			MustCreateAssetFromTemplate(AssetPathKubeFlannelCfg, internal.KubeFlannelCfgTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathKubeFlannel, internal.KubeFlannelTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathFlannel, internal.FlannelTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathFlannelCfg, internal.FlannelCfgTemplate, conf),
+			MustCreateAssetFromTemplate(AssetPathFlannelClusterRole, internal.FlannelClusterRole, conf),
+			MustCreateAssetFromTemplate(AssetPathFlannelClusterRoleBinding, internal.FlannelClusterRoleBinding, conf),
+			MustCreateAssetFromTemplate(AssetPathFlannelSA, internal.FlannelServiceAccount, conf),
 		)
 	case NetworkCalico:
 		assets = append(assets,
@@ -81,9 +83,13 @@ func newDynamicAssets(conf Config) Assets {
 			MustCreateAssetFromTemplate(AssetPathCalicoRoleBinding, internal.CalicoRoleBindingTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoSA, internal.CalicoServiceAccountTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalico, internal.CalicoNodeTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigsCRD, internal.CalicoBGPConfigsCRD, conf),
-			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigsCRD, internal.CalicoFelixConfigsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigurationsCRD, internal.CalicoBGPConfigurationsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoBGPPeersCRD, internal.CalicoBGPPeersCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigurationsCRD, internal.CalicoFelixConfigurationsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoGlobalNetworkPoliciesCRD, internal.CalicoGlobalNetworkPoliciesCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoGlobalNetworkSetsCRD, internal.CalicoGlobalNetworkSetsCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoNetworkPoliciesCRD, internal.CalicoNetworkPoliciesCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoClusterInformationsCRD, internal.CalicoClusterInformationsCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoIPPoolsCRD, internal.CalicoIPPoolsCRD, conf))
 	case NetworkCanal:
 		assets = append(assets,
@@ -92,79 +98,92 @@ func newDynamicAssets(conf Config) Assets {
 			MustCreateAssetFromTemplate(AssetPathCalicoRoleBinding, internal.CalicoRoleBindingTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoSA, internal.CalicoServiceAccountTemplate, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoPolicyOnly, internal.CalicoPolicyOnlyTemplate, conf),
-			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigsCRD, internal.CalicoBGPConfigsCRD, conf),
-			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigsCRD, internal.CalicoFelixConfigsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoBGPConfigurationsCRD, internal.CalicoBGPConfigurationsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoBGPPeersCRD, internal.CalicoBGPPeersCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoFelixConfigurationsCRD, internal.CalicoFelixConfigurationsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoGlobalNetworkPoliciesCRD, internal.CalicoGlobalNetworkPoliciesCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoGlobalNetworkSetsCRD, internal.CalicoGlobalNetworkSetsCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoGlobalNetworkPoliciesCRD, internal.CalicoGlobalNetworkPoliciesCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoNetworkPoliciesCRD, internal.CalicoNetworkPoliciesCRD, conf),
+			MustCreateAssetFromTemplate(AssetPathCalicoClusterInformationsCRD, internal.CalicoClusterInformationsCRD, conf),
 			MustCreateAssetFromTemplate(AssetPathCalicoIPPoolsCRD, internal.CalicoIPPoolsCRD, conf))
 	}
 	return assets
 }
 
-func newKubeConfigAsset(assets Assets, conf Config) (Asset, error) {
-	caCert, err := assets.Get(AssetPathCACert)
-	if err != nil {
-		return Asset{}, err
+const validBootstrapTokenChars = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+// newBootstrapToken constructs a bootstrap token in conformance with the following format:
+// https://kubernetes.io/docs/admin/bootstrap-tokens/#token-format
+func newBootstrapToken() (id string, secret string, err error) {
+	// Read 6 random bytes for the id and 16 random bytes for the token (see spec for details).
+	token := make([]byte, 6+16)
+	if _, err := rand.Read(token); err != nil {
+		return "", "", err
 	}
 
-	kubeletCert, err := assets.Get(AssetPathKubeletCert)
-	if err != nil {
-		return Asset{}, err
+	for i, b := range token {
+		token[i] = validBootstrapTokenChars[int(b)%len(validBootstrapTokenChars)]
 	}
-
-	kubeletKey, err := assets.Get(AssetPathKubeletKey)
-	if err != nil {
-		return Asset{}, err
-	}
-
-	type templateCfg struct {
-		Server      string
-		CACert      string
-		KubeletCert string
-		KubeletKey  string
-	}
-
-	return assetFromTemplate(AssetPathKubeConfig, internal.KubeConfigTemplate, templateCfg{
-		Server:      conf.APIServers[0].String(),
-		CACert:      base64.StdEncoding.EncodeToString(caCert.Data),
-		KubeletCert: base64.StdEncoding.EncodeToString(kubeletCert.Data),
-		KubeletKey:  base64.StdEncoding.EncodeToString(kubeletKey.Data),
-	})
+	return string(token[:6]), string(token[6:]), nil
 }
 
-func newSelfHostedEtcdSecretAssets(assets Assets) (Assets, error) {
-	var res Assets
-
-	secretYAML, err := secretFromAssets(SecretEtcdPeer, secretNamespace, []string{
-		AssetPathEtcdPeerCA,
-		AssetPathEtcdPeerCert,
-		AssetPathEtcdPeerKey,
-	}, assets)
+func newKubeConfigAssets(assets Assets, conf Config) ([]Asset, error) {
+	caCert, err := assets.Get(AssetPathCACert)
 	if err != nil {
 		return nil, err
 	}
-	res = append(res, Asset{Name: AssetPathEtcdPeerSecret, Data: secretYAML})
 
-	secretYAML, err = secretFromAssets(SecretEtcdServer, secretNamespace, []string{
-		AssetPathEtcdServerCA,
-		AssetPathEtcdServerCert,
-		AssetPathEtcdServerKey,
-	}, assets)
+	adminCert, err := assets.Get(AssetPathAdminCert)
 	if err != nil {
 		return nil, err
 	}
-	res = append(res, Asset{Name: AssetPathEtcdServerSecret, Data: secretYAML})
 
-	secretYAML, err = secretFromAssets(SecretEtcdClient, secretNamespace, []string{
-		AssetPathEtcdClientCA,
-		AssetPathEtcdClientCert,
-		AssetPathEtcdClientKey,
-	}, assets)
+	adminKey, err := assets.Get(AssetPathAdminKey)
 	if err != nil {
 		return nil, err
 	}
-	res = append(res, Asset{Name: AssetPathEtcdClientSecret, Data: secretYAML})
 
-	return res, nil
+	bootstrapTokenID, bootstrapTokenSecret, err := newBootstrapToken()
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := struct {
+		Server               string
+		CACert               string
+		AdminCert            string
+		AdminKey             string
+		BootstrapTokenID     string
+		BootstrapTokenSecret string
+	}{
+		Server:               conf.APIServers[0].String(),
+		CACert:               base64.StdEncoding.EncodeToString(caCert.Data),
+		AdminCert:            base64.StdEncoding.EncodeToString(adminCert.Data),
+		AdminKey:             base64.StdEncoding.EncodeToString(adminKey.Data),
+		BootstrapTokenID:     bootstrapTokenID,
+		BootstrapTokenSecret: bootstrapTokenSecret,
+	}
+
+	templates := []struct {
+		path string
+		tmpl []byte
+	}{
+		{AssetPathAdminKubeConfig, internal.AdminKubeConfigTemplate},
+		{AssetPathKubeConfigInCluster, internal.KubeConfigInClusterTemplate},
+		{AssetPathKubeletKubeConfig, internal.KubeletKubeConfigTemplate},
+		{AssetPathKubeletBootstrapToken, internal.KubeletBootstrappingToken},
+	}
+
+	var as []Asset
+	for _, t := range templates {
+		a, err := assetFromTemplate(t.path, t.tmpl, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("rendering template %s: %v", t.path, err)
+		}
+		as = append(as, a)
+	}
+	return as, nil
 }
 
 func newAPIServerSecretAsset(assets Assets, etcdUseTLS bool) (Asset, error) {
@@ -193,7 +212,8 @@ func newAPIServerSecretAsset(assets Assets, etcdUseTLS bool) (Asset, error) {
 func newControllerManagerSecretAsset(assets Assets) (Asset, error) {
 	secretAssets := []string{
 		AssetPathServiceAccountPrivKey,
-		AssetPathCACert, //TODO(aaron): do we want this also distributed as secret? or expect available on host?
+		AssetPathCACert,
+		AssetPathCAKey,
 	}
 
 	secretYAML, err := secretFromAssets(secretCMName, secretNamespace, secretAssets, assets)

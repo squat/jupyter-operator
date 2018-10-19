@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+set -x
 
 REMOTE_HOST=$1
 REMOTE_PORT=${REMOTE_PORT:-22}
@@ -7,7 +8,7 @@ REMOTE_USER=${REMOTE_USER:-core}
 CLUSTER_DIR=${CLUSTER_DIR:-cluster}
 IDENT=${IDENT:-${HOME}/.ssh/id_rsa}
 SSH_OPTS=${SSH_OPTS:-}
-SELF_HOST_ETCD=${SELF_HOST_ETCD:-false}
+BOOTKUBE_OPTS=${BOOTKUBE_OPTS:-}
 CLOUD_PROVIDER=${CLOUD_PROVIDER:-}
 NETWORK_PROVIDER=${NETWORK_PROVIDER:-flannel}
 
@@ -15,6 +16,27 @@ function usage() {
     echo "USAGE:"
     echo "$0: <remote-host>"
     exit 1
+}
+
+function retry_cmd() {
+    set +e
+    max_retries=$1; shift
+    backoff=1
+    retry=0
+    false
+    while [ $? -ne 0 ]; do
+        if [ "$retry" -ge $max_retries ]; then
+            break
+        else
+            retry=$((retry+1))
+        fi
+        "$@" || (sleep $((backoff *= 2)); false)
+    done
+    set -e
+}
+
+function wait_for_ssh() {
+    retry_cmd 100 ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "uname -a"
 }
 
 function configure_etcd() {
@@ -52,12 +74,7 @@ function init_master_node() {
     systemctl daemon-reload
     systemctl stop locksmithd; systemctl mask locksmithd
 
-    if [ "$SELF_HOST_ETCD" = true ] ; then
-        echo "WARNING: THIS IS NOT YET FULLY WORKING - merely here to make ongoing testing easier"
-        etcd_render_flags="--experimental-self-hosted-etcd"
-    else
-        etcd_render_flags="--etcd-servers=https://${COREOS_PRIVATE_IPV4}:2379"
-    fi
+    etcd_render_flags="--etcd-servers=https://${COREOS_PRIVATE_IPV4}:2379"
 
     if [ "$NETWORK_PROVIDER" = "canal" ]; then
         network_provider_flags="--network-provider=experimental-canal"
@@ -69,43 +86,44 @@ function init_master_node() {
 
     # Render cluster assets
     /home/${REMOTE_USER}/bootkube render --asset-dir=/home/${REMOTE_USER}/assets ${etcd_render_flags} ${network_provider_flags} \
-      --api-servers=https://${COREOS_PUBLIC_IPV4}:443,https://${COREOS_PRIVATE_IPV4}:443
+      --api-servers=https://${COREOS_PUBLIC_IPV4}:6443,https://${COREOS_PRIVATE_IPV4}:6443
 
     # Move the local kubeconfig into expected location
     chown -R ${REMOTE_USER}:${REMOTE_USER} /home/${REMOTE_USER}/assets
     mkdir -p /etc/kubernetes
-    cp /home/${REMOTE_USER}/assets/auth/kubeconfig /etc/kubernetes/
+    cp /home/${REMOTE_USER}/assets/auth/kubeconfig-kubelet /etc/kubernetes/kubeconfig
+    cp /home/${REMOTE_USER}/assets/auth/kubeconfig /etc/kubernetes/kubeconfig-admin
     cp /home/${REMOTE_USER}/assets/tls/ca.crt /etc/kubernetes/ca.crt
 
     # Start etcd.
-    if [ "$SELF_HOST_ETCD" = false ] ; then
-        configure_etcd
-        systemctl enable etcd-member; sudo systemctl start etcd-member
-    fi
+    configure_etcd
+    systemctl enable etcd-member; sudo systemctl start etcd-member
 
     # Set cloud provider
     sed -i "s/cloud-provider=/cloud-provider=$CLOUD_PROVIDER/" /etc/systemd/system/kubelet.service
+
+    # Configure master label and taint
+    echo -e 'node_label=node-role.kubernetes.io/master\nnode_taint=node-role.kubernetes.io/master=:NoSchedule' > /etc/kubernetes/kubelet.env
 
     # Start the kubelet
     systemctl enable kubelet; sudo systemctl start kubelet
 
     # Start bootkube to launch a self-hosted cluster
-    /home/${REMOTE_USER}/bootkube start --asset-dir=/home/${REMOTE_USER}/assets
+    /home/${REMOTE_USER}/bootkube start ${BOOTKUBE_OPTS} --asset-dir=/home/${REMOTE_USER}/assets
 }
 
 [ "$#" == 1 ] || usage
 
-[ -d "${CLUSTER_DIR}" ] && {
-    echo "Error: CLUSTER_DIR=${CLUSTER_DIR} already exists"
-    exit 1
-}
-
 # This script can execute on a remote host by copying itself + bootkube binary + kubelet service unit to remote host.
 # After assets are available on the remote host, the script will execute itself in "local" mode.
 if [ "${REMOTE_HOST}" != "local" ]; then
+
+    # wait for ssh to be ready
+    wait_for_ssh
+
     # Set up the kubelet.service on remote host
-    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.master ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/kubelet.master
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo mv /home/${REMOTE_USER}/kubelet.master /etc/systemd/system/kubelet.service"
+    scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} kubelet.service ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/kubelet.service
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo mv /home/${REMOTE_USER}/kubelet.service /etc/systemd/system/kubelet.service"
 
     # Copy bootkube binary to remote host.
     if [ -e "../../_output/bin/linux/bootkube" ]; then
@@ -122,10 +140,10 @@ if [ "${REMOTE_HOST}" != "local" ]; then
     fi
     # Copy self to remote host so script can be executed in "local" mode
     scp -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} ${BASH_SOURCE[0]} ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/init-master.sh
-    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo REMOTE_USER=${REMOTE_USER} CLOUD_PROVIDER=${CLOUD_PROVIDER} SELF_HOST_ETCD=${SELF_HOST_ETCD} NETWORK_PROVIDER=${NETWORK_PROVIDER} /home/${REMOTE_USER}/init-master.sh local"
+    ssh -i ${IDENT} -p ${REMOTE_PORT} ${SSH_OPTS} ${REMOTE_USER}@${REMOTE_HOST} "sudo BOOTKUBE_OPTS=${BOOTKUBE_OPTS} REMOTE_USER=${REMOTE_USER} CLOUD_PROVIDER=${CLOUD_PROVIDER} NETWORK_PROVIDER=${NETWORK_PROVIDER} /home/${REMOTE_USER}/init-master.sh local"
 
     # Copy assets from remote host to a local directory. These can be used to launch additional nodes & contain TLS assets
-    mkdir ${CLUSTER_DIR}
+    mkdir -p ${CLUSTER_DIR}
     scp -q -i ${IDENT} -P ${REMOTE_PORT} ${SSH_OPTS} -r ${REMOTE_USER}@${REMOTE_HOST}:/home/${REMOTE_USER}/assets/* ${CLUSTER_DIR}
 
     # Cleanup
@@ -137,7 +155,7 @@ if [ "${REMOTE_HOST}" != "local" ]; then
     echo "kubectl --kubeconfig=${CLUSTER_DIR}/auth/kubeconfig get nodes"
     echo
     echo "Additional nodes can be added to the cluster using:"
-    echo "./init-node.sh <node-ip> ${CLUSTER_DIR}/auth/kubeconfig"
+    echo "./init-node.sh <node-ip> ${CLUSTER_DIR}/auth/kubeconfig-kubelet"
     echo
 
 # Execute this script locally on the machine, assumes a kubelet.service file has already been placed on host.

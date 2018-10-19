@@ -3,6 +3,7 @@ package asset
 import (
 	"crypto/rsa"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -15,65 +16,78 @@ import (
 )
 
 const (
-	AssetPathSecrets                     = "tls"
-	AssetPathCAKey                       = "tls/ca.key"
-	AssetPathCACert                      = "tls/ca.crt"
-	AssetPathAPIServerKey                = "tls/apiserver.key"
-	AssetPathAPIServerCert               = "tls/apiserver.crt"
-	AssetPathEtcdClientCA                = "tls/etcd-client-ca.crt"
-	AssetPathEtcdClientCert              = "tls/etcd-client.crt"
-	AssetPathEtcdClientKey               = "tls/etcd-client.key"
-	AssetPathEtcdServerCA                = "tls/etcd/server-ca.crt"
-	AssetPathEtcdServerCert              = "tls/etcd/server.crt"
-	AssetPathEtcdServerKey               = "tls/etcd/server.key"
-	AssetPathEtcdPeerCA                  = "tls/etcd/peer-ca.crt"
-	AssetPathEtcdPeerCert                = "tls/etcd/peer.crt"
-	AssetPathEtcdPeerKey                 = "tls/etcd/peer.key"
-	AssetPathServiceAccountPrivKey       = "tls/service-account.key"
-	AssetPathServiceAccountPubKey        = "tls/service-account.pub"
-	AssetPathKubeletKey                  = "tls/kubelet.key"
-	AssetPathKubeletCert                 = "tls/kubelet.crt"
-	AssetPathKubeConfig                  = "auth/kubeconfig"
-	AssetPathManifests                   = "manifests"
-	AssetPathKubelet                     = "manifests/kubelet.yaml"
-	AssetPathProxy                       = "manifests/kube-proxy.yaml"
-	AssetPathKubeFlannel                 = "manifests/kube-flannel.yaml"
-	AssetPathKubeFlannelCfg              = "manifests/kube-flannel-cfg.yaml"
-	AssetPathCalico                      = "manifests/calico.yaml"
-	AssetPathCalicoPolicyOnly            = "manifests/calico-policy-only.yaml"
-	AssetPathCalicoCfg                   = "manifests/calico-config.yaml"
-	AssetPathCalicoSA                    = "manifests/calico-service-account.yaml"
-	AssetPathCalicoRole                  = "manifests/calico-role.yaml"
-	AssetPathCalicoRoleBinding           = "manifests/calico-role-binding.yaml"
-	AssetPathCalicoBGPConfigsCRD         = "manifests/calico-bgp-configs-crd.yaml"
-	AssetPathCalicoFelixConfigsCRD       = "manifests/calico-felix-configs-crd.yaml"
-	AssetPathCalicoNetworkPoliciesCRD    = "manifests/calico-network-policies-crd.yaml"
-	AssetPathCalicoIPPoolsCRD            = "manifests/calico-ip-pools-crd.yaml"
-	AssetPathAPIServerSecret             = "manifests/kube-apiserver-secret.yaml"
-	AssetPathAPIServer                   = "manifests/kube-apiserver.yaml"
-	AssetPathControllerManager           = "manifests/kube-controller-manager.yaml"
-	AssetPathControllerManagerSecret     = "manifests/kube-controller-manager-secret.yaml"
-	AssetPathControllerManagerDisruption = "manifests/kube-controller-manager-disruption.yaml"
-	AssetPathScheduler                   = "manifests/kube-scheduler.yaml"
-	AssetPathSchedulerDisruption         = "manifests/kube-scheduler-disruption.yaml"
-	AssetPathKubeDNSDeployment           = "manifests/kube-dns-deployment.yaml"
-	AssetPathKubeDNSSvc                  = "manifests/kube-dns-svc.yaml"
-	AssetPathSystemNamespace             = "manifests/kube-system-ns.yaml"
-	AssetPathCheckpointer                = "manifests/pod-checkpointer.yaml"
-	AssetPathEtcdOperator                = "manifests/etcd-operator.yaml"
-	AssetPathEtcdSvc                     = "manifests/etcd-service.yaml"
-	AssetPathEtcdClientSecret            = "manifests/etcd-client-tls.yaml"
-	AssetPathEtcdPeerSecret              = "manifests/etcd-peer-tls.yaml"
-	AssetPathEtcdServerSecret            = "manifests/etcd-server-tls.yaml"
-	AssetPathKenc                        = "manifests/kube-etcd-network-checkpointer.yaml"
-	AssetPathKubeSystemSARoleBinding     = "manifests/kube-system-rbac-role-binding.yaml"
-	AssetPathBootstrapManifests          = "bootstrap-manifests"
-	AssetPathBootstrapAPIServer          = "bootstrap-manifests/bootstrap-apiserver.yaml"
-	AssetPathBootstrapControllerManager  = "bootstrap-manifests/bootstrap-controller-manager.yaml"
-	AssetPathBootstrapScheduler          = "bootstrap-manifests/bootstrap-scheduler.yaml"
-	AssetPathBootstrapEtcd               = "bootstrap-manifests/bootstrap-etcd.yaml"
-	AssetPathBootstrapEtcdService        = "etcd/bootstrap-etcd-service.json"
-	AssetPathMigrateEtcdCluster          = "etcd/migrate-etcd-cluster.json"
+	AssetPathSecrets                        = "tls"
+	AssetPathCAKey                          = "tls/ca.key"
+	AssetPathCACert                         = "tls/ca.crt"
+	AssetPathAPIServerKey                   = "tls/apiserver.key"
+	AssetPathAPIServerCert                  = "tls/apiserver.crt"
+	AssetPathEtcdClientCA                   = "tls/etcd-client-ca.crt"
+	AssetPathEtcdClientCert                 = "tls/etcd-client.crt"
+	AssetPathEtcdClientKey                  = "tls/etcd-client.key"
+	AssetPathEtcdServerCA                   = "tls/etcd/server-ca.crt"
+	AssetPathEtcdServerCert                 = "tls/etcd/server.crt"
+	AssetPathEtcdServerKey                  = "tls/etcd/server.key"
+	AssetPathEtcdPeerCA                     = "tls/etcd/peer-ca.crt"
+	AssetPathEtcdPeerCert                   = "tls/etcd/peer.crt"
+	AssetPathEtcdPeerKey                    = "tls/etcd/peer.key"
+	AssetPathServiceAccountPrivKey          = "tls/service-account.key"
+	AssetPathServiceAccountPubKey           = "tls/service-account.pub"
+	AssetPathAdminKey                       = "tls/admin.key"
+	AssetPathAdminCert                      = "tls/admin.crt"
+	AssetPathAdminKubeConfig                = "auth/kubeconfig"
+	AssetPathKubeletKubeConfig              = "auth/kubeconfig-kubelet"
+	AssetPathManifests                      = "manifests"
+	AssetPathKubeConfigInCluster            = "manifests/kubeconfig-in-cluster.yaml"
+	AssetPathKubeletBootstrapToken          = "manifests/kubelet-bootstrap-token.yaml"
+	AssetPathProxy                          = "manifests/kube-proxy.yaml"
+	AssetPathProxySA                        = "manifests/kube-proxy-sa.yaml"
+	AssetPathProxyRoleBinding               = "manifests/kube-proxy-role-binding.yaml"
+	AssetPathFlannel                        = "manifests/flannel.yaml"
+	AssetPathFlannelCfg                     = "manifests/flannel-cfg.yaml"
+	AssetPathFlannelClusterRole             = "manifests/flannel-cluster-role.yaml"
+	AssetPathFlannelClusterRoleBinding      = "manifests/flannel-cluster-role-binding.yaml"
+	AssetPathFlannelSA                      = "manifests/flannel-sa.yaml"
+	AssetPathCalico                         = "manifests/calico.yaml"
+	AssetPathCalicoPolicyOnly               = "manifests/calico-policy-only.yaml"
+	AssetPathCalicoCfg                      = "manifests/calico-config.yaml"
+	AssetPathCalicoSA                       = "manifests/calico-service-account.yaml"
+	AssetPathCalicoRole                     = "manifests/calico-role.yaml"
+	AssetPathCalicoRoleBinding              = "manifests/calico-role-binding.yaml"
+	AssetPathCalicoBGPConfigurationsCRD     = "manifests/calico-bgp-configurations-crd.yaml"
+	AssetPathCalicoBGPPeersCRD              = "manifests/calico-bgp-peers-crd.yaml"
+	AssetPathCalicoFelixConfigurationsCRD   = "manifests/calico-felix-configurations-crd.yaml"
+	AssetPathCalicoGlobalNetworkPoliciesCRD = "manifests/calico-global-network-policies-crd.yaml"
+	AssetPathCalicoNetworkPoliciesCRD       = "manifests/calico-network-policies-crd.yaml"
+	AssetPathCalicoGlobalNetworkSetsCRD     = "manifests/calico-global-network-sets-crd.yaml"
+	AssetPathCalicoIPPoolsCRD               = "manifests/calico-ip-pools-crd.yaml"
+	AssetPathCalicoClusterInformationsCRD   = "manifests/calico-cluster-informations-crd.yaml"
+	AssetPathAPIServerSecret                = "manifests/kube-apiserver-secret.yaml"
+	AssetPathAPIServer                      = "manifests/kube-apiserver.yaml"
+	AssetPathControllerManager              = "manifests/kube-controller-manager.yaml"
+	AssetPathControllerManagerSA            = "manifests/kube-controller-manager-service-account.yaml"
+	AssetPathControllerManagerRB            = "manifests/kube-controller-manager-role-binding.yaml"
+	AssetPathControllerManagerSecret        = "manifests/kube-controller-manager-secret.yaml"
+	AssetPathControllerManagerDisruption    = "manifests/kube-controller-manager-disruption.yaml"
+	AssetPathScheduler                      = "manifests/kube-scheduler.yaml"
+	AssetPathSchedulerDisruption            = "manifests/kube-scheduler-disruption.yaml"
+	AssetPathKubeDNSDeployment              = "manifests/kube-dns-deployment.yaml"
+	AssetPathKubeDNSSvc                     = "manifests/kube-dns-svc.yaml"
+	AssetPathSystemNamespace                = "manifests/kube-system-ns.yaml"
+	AssetPathCheckpointer                   = "manifests/pod-checkpointer.yaml"
+	AssetPathCheckpointerSA                 = "manifests/pod-checkpointer-sa.yaml"
+	AssetPathCheckpointerRole               = "manifests/pod-checkpointer-role.yaml"
+	AssetPathCheckpointerRoleBinding        = "manifests/pod-checkpointer-role-binding.yaml"
+	AssetPathEtcdClientSecret               = "manifests/etcd-client-tls.yaml"
+	AssetPathEtcdPeerSecret                 = "manifests/etcd-peer-tls.yaml"
+	AssetPathEtcdServerSecret               = "manifests/etcd-server-tls.yaml"
+	AssetPathCSRBootstrapRoleBinding        = "manifests/csr-bootstrap-role-binding.yaml"
+	AssetPathCSRApproverRoleBinding         = "manifests/csr-approver-role-binding.yaml"
+	AssetPathCSRRenewalRoleBinding          = "manifests/csr-renewal-role-binding.yaml"
+	AssetPathKubeSystemSARoleBinding        = "manifests/kube-system-rbac-role-binding.yaml"
+	AssetPathBootstrapManifests             = "bootstrap-manifests"
+	AssetPathBootstrapAPIServer             = "bootstrap-manifests/bootstrap-apiserver.yaml"
+	AssetPathBootstrapControllerManager     = "bootstrap-manifests/bootstrap-controller-manager.yaml"
+	AssetPathBootstrapScheduler             = "bootstrap-manifests/bootstrap-scheduler.yaml"
 )
 
 var (
@@ -95,12 +109,7 @@ type Config struct {
 	PodCIDR                *net.IPNet
 	ServiceCIDR            *net.IPNet
 	APIServiceIP           net.IP
-	BootEtcdServiceIP      net.IP
 	DNSServiceIP           net.IP
-	EtcdServiceIP          net.IP
-	EtcdServiceName        string
-	SelfHostKubelet        bool
-	SelfHostedEtcd         bool
 	CloudProvider          string
 	NetworkProvider        string
 	BootstrapSecretsSubdir string
@@ -110,7 +119,6 @@ type Config struct {
 // ImageVersions holds all the images (and their versions) that are rendered into the templates.
 type ImageVersions struct {
 	Etcd            string
-	EtcdOperator    string
 	Flannel         string
 	FlannelCNI      string
 	Calico          string
@@ -153,33 +161,18 @@ func NewDefaultAssets(conf Config) (Assets, error) {
 
 	// etcd TLS assets.
 	if conf.EtcdUseTLS {
-		if conf.SelfHostedEtcd {
-			tlsAssets, err := newSelfHostedEtcdTLSAssets(conf.EtcdServiceIP.String(), conf.BootEtcdServiceIP.String(), conf.CACert, conf.CAPrivKey)
-			if err != nil {
-				return nil, err
-			}
-			as = append(as, tlsAssets...)
-
-			secretAssets, err := newSelfHostedEtcdSecretAssets(as)
-			if err != nil {
-				return nil, err
-			}
-			as = append(as, secretAssets...)
-		} else {
-			etcdTLSAssets, err := newEtcdTLSAssets(conf.EtcdCACert, conf.EtcdClientCert, conf.EtcdClientKey, conf.CACert, conf.CAPrivKey, conf.EtcdServers)
-			if err != nil {
-				return Assets{}, err
-			}
-			as = append(as, etcdTLSAssets...)
+		etcdTLSAssets, err := newEtcdTLSAssets(conf.EtcdCACert, conf.EtcdClientCert, conf.EtcdClientKey, conf.CACert, conf.CAPrivKey, conf.EtcdServers)
+		if err != nil {
+			return Assets{}, err
 		}
+		as = append(as, etcdTLSAssets...)
 	}
 
-	// K8S kubeconfig
-	kubeConfig, err := newKubeConfigAsset(as, conf)
+	kubeConfigAssets, err := newKubeConfigAssets(as, conf)
 	if err != nil {
 		return Assets{}, err
 	}
-	as = append(as, kubeConfig)
+	as = append(as, kubeConfigAssets...)
 
 	// K8S APIServer secret
 	apiSecret, err := newAPIServerSecretAsset(as, conf.EtcdUseTLS)
@@ -215,8 +208,15 @@ func (as Assets) Get(name string) (Asset, error) {
 }
 
 func (as Assets) WriteFiles(path string) error {
-	if err := os.Mkdir(path, 0755); err != nil {
+	if err := os.MkdirAll(path, 0755); err != nil {
 		return err
+	}
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	if len(files) > 0 {
+		return errors.New("asset directory must be empty")
 	}
 	for _, asset := range as {
 		if err := asset.WriteFile(path); err != nil {

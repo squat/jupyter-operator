@@ -47,14 +47,48 @@ In the event of partial or total self-hosted control plane loss, `bootkube
 recover` may be able to assist in re-bootstrapping the self-hosted control
 plane.
 
-The `bootkube recover` subcommand does not recover a cluster directly. Instead,
-it extracts the control plane configuration from an available source and
-renders manifests in a format that `bootkube start` can use invoked to reboot
-the cluster.
+The `bootkube recover` subcommand does not recover a cluster directly. The
+recovery is a two step process: `bootkube recover` then `bootkube start`. The
+recovery command extracts the control plane configuration from an available
+source and renders manifests to the local filesystem. These resulting manifests
+can be passed to `bootkube start`.
 
-For best results always use the latest Bootkube release when using `recover`,
-regardless of which release was used to create the cluster. To see available
-options, run:
+There are two available sources to choose from in `recover`: etcd or API server.
+
+### What does bootkube recover do?
+
+`bootkube recover`attempts to read the configuration from an existing backend etcd or
+API server. On success, `bootkube recover` writes manifests for a modified
+bootstrap control plane to a directory. The second phase of the recover can be
+initiated by an administrator by running `bootkube start` on these manifests.
+
+`bootkube recover` modifies bootstrap pod specs in the following ways:
+
+* Ensure the pod runs as root
+* Ensure the container runs as root
+* Change Secret volume mounts to point to file mounts
+* Change ConfigMaps volume mounts to point to file mounts
+* Ensures the commandline of the containers contains --kubeconfig=/kubeconfig/kubeconfig
+* Add a mount for the kubeconfig
+
+Assets include:
+
+* Bootstrap Daemonsets
+* Bootstrap Deployments
+* Required ConfigMaps
+* Required Secrets
+
+By running `bootkube start` to recover the cluster, `bootkube start` will
+automatically tear down the recovery control plane.
+
+### bootkube recover usage
+
+For best results always use the most recently tagged Bootkube release when using `recover`,
+regardless of which release was used to create the cluster. To see the available releases,
+checkout [the tagged binary releases on GitHub](https://github.com/kubernetes-incubator/bootkube/releases)
+or [the tagged Docker images on Quay.io](https://quay.io/repository/coreos/bootkube).
+
+To see available options, run:
 
 ```
 bootkube recover --help
@@ -71,11 +105,19 @@ ssh user@master-node
 sudo ./bootkube start --asset-dir=recovered
 ```
 
+Note: the `bootkube start` invocation will print the following warning message:
+
+```
+WARNING: recovered/manifests does not exist, not creating any self-hosted assets.
+```
+
+This message can be safely ignored. It is printed because recovery does not
+attempt to recreate self-hosted assets; it only runs a temporary control plane
+to allow the self-hosted control plane to recover itself.
+
 For complete recovery examples see the
 [hack/multi-node/bootkube-test-recovery](https://github.com/kubernetes-incubator/bootkube/blob/master/hack/multi-node/bootkube-test-recovery)
 and
-[hack/multi-node/bootkube-test-recovery-self-hosted-etcd](https://github.com/kubernetes-incubator/bootkube/blob/master/hack/multi-node/bootkube-test-recovery-self-hosted-etcd)
-scripts. The `bootkube-test-recovery` script is demoed below.
 
 [![asciicast](https://asciinema.org/a/dsp43ziuuzwcztni94y8l25s5.png)](https://asciinema.org/a/dsp43ziuuzwcztni94y8l25s5)
 
@@ -90,7 +132,7 @@ bootkube recover --recovery-dir=recovered --kubeconfig=/etc/kubernetes/kubeconfi
 ```
 ### If an external etcd cluster is still running
 
-If using an external (non-self-hosted) etcd cluster, the control plane can be
+If using an external etcd cluster, the control plane can be
 extracted directly from etcd:
 
 ```
@@ -101,15 +143,3 @@ bootkube recover --recovery-dir=recovered --etcd-servers=http://127.0.0.1:2379 -
 
 First, recover the external etcd cluster from the backup. Then use the method
 described in the previous section to recover the control plane manifests.
-
-### If an etcd backup is available (self-hosted etcd)
-
-If using self-hosted etcd, recovery is supported via reading from an etcd
-backup file:
-
-```
-bootkube recover --recovery-dir=recovered --etcd-backup-file=backup --kubeconfig=/etc/kubernetes/kubeconfig
-```
-
-In addition to rebooting the control plane, this will also destroy and recreate
-the self-hosted etcd cluster using the backup.

@@ -37,11 +37,7 @@ func New(path string) Interface {
 	var config *rest.Config
 	var err error
 
-	if path != "" {
-		config, err = clientcmd.BuildConfigFromFlags("", path)
-	} else {
-		config, err = rest.InClusterConfig()
-	}
+	config, err = clientcmd.BuildConfigFromFlags("", path)
 
 	if err != nil {
 		log.Fatal(err)

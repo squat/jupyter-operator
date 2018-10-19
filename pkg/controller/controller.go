@@ -14,6 +14,7 @@ import (
 	jupyterv1listers "github.com/squat/jupyter-operator/pkg/listers/jupyter/v1"
 
 	"github.com/Sirupsen/logrus"
+	crdutils "github.com/ant31/crd-validation/pkg"
 	"github.com/hashicorp/terraform/helper/mutexkv"
 	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
@@ -143,21 +144,18 @@ func (c *Controller) initCRD() error {
 }
 
 func (c *Controller) createCRD() error {
-	crd := &apiextensionsv1beta1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: jupyterv1.NotebookName,
-		},
-		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-			Group:   jupyterv1.GroupName,
-			Version: jupyterv1.SchemeGroupVersion.Version,
-			Scope:   apiextensionsv1beta1.NamespaceScoped,
-			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
-				Plural:     jupyterv1.NotebookPlural,
-				Kind:       jupyterv1.NotebookKind,
-				ShortNames: jupyterv1.NotebookShortNames,
-			},
-		},
-	}
+	crd := crdutils.NewCustomResourceDefinition(crdutils.Config{
+		SpecDefinitionName:    jupyterv1.NotebookName,
+		EnableValidation:      true,
+		ResourceScope:         string(apiextensionsv1beta1.NamespaceScoped),
+		Group:                 jupyterv1.GroupName,
+		Kind:                  jupyterv1.NotebookKind,
+		Version:               jupyterv1.SchemeGroupVersion.Version,
+		Plural:                jupyterv1.NotebookPlural,
+		ShortNames:            jupyterv1.NotebookShortNames,
+		GetOpenAPIDefinitions: jupyterv1.GetOpenAPIDefinitions,
+	})
+
 	_, err := c.client.APIExtensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 	return err
 }
