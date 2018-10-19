@@ -86,12 +86,18 @@ func CalculatePod(n *jupyterv1.Notebook) *corev1.Pod {
 			},
 		}
 	}
+	var tolerations []corev1.Toleration
 	if n.Spec.GPU {
 		container.Resources = corev1.ResourceRequirements{
-			Requests: corev1.ResourceList{
-				"alpha.kubernetes.io/nvidia-gpu": *resource.NewQuantity(1, resource.DecimalExponent),
+			Limits: corev1.ResourceList{
+				"nvidia.com/gpu": *resource.NewQuantity(1, resource.DecimalExponent),
 			},
 		}
+		tolerations = append(tolerations, corev1.Toleration{
+			Key:      "nvidia.com/gpu",
+			Effect:   corev1.TaintEffectNoSchedule,
+			Operator: corev1.TolerationOpExists,
+		})
 	}
 	labels := sapyensLabels(n.Name, n.Spec.Owner)
 	labels["component"] = "singleuser-server"
@@ -107,6 +113,7 @@ func CalculatePod(n *jupyterv1.Notebook) *corev1.Pod {
 			AutomountServiceAccountToken: &automountServiceAccountToken,
 			Containers:                   []corev1.Container{container},
 			RestartPolicy:                corev1.RestartPolicyNever,
+			Tolerations:                  tolerations,
 			Volumes:                      []corev1.Volume{volume},
 		},
 	}
