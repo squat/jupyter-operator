@@ -275,15 +275,25 @@ func (c *Controller) sync(key string) error {
 		notebook.DeletionTimestamp = &now
 		if err := c.reconcileNotebookResources(notebook); err != nil {
 			c.logger.Errorf("failed to reconcile deleted notebook: %v", err)
+			return err
 		}
 		return nil
 	}
 	if err != nil {
-		c.logger.Debugf("failed to list notebooks: %v", err)
+		c.logger.Debugf("failed to list notebook: %v", err)
 		return err
 	}
 
 	n := notebook.DeepCopy()
+
+	if err := n.Validate(); err != nil {
+		if phaseErr := c.setNotebookPhase(n, jupyterv1.NotebookPhaseFailed); phaseErr != nil {
+			c.logger.Warnf("failed to set notebook phase for %s: %v", key, phaseErr)
+		}
+		return err
+	}
+
+	n.SetDefaults()
 	if n.Kind == "" {
 		n.Kind = jupyterv1.NotebookKind
 		n.APIVersion = jupyterv1.SchemeGroupVersion.String()
@@ -295,7 +305,9 @@ func (c *Controller) sync(key string) error {
 	}
 	if err = c.reconcileNotebookResources(n); err != nil {
 		c.logger.Debugf("failed to reconcile resources for %s: %v", key, err)
-		c.setNotebookPhase(n, jupyterv1.NotebookPhaseFailed)
+		if phaseErr := c.setNotebookPhase(n, jupyterv1.NotebookPhaseFailed); phaseErr != nil {
+			c.logger.Warnf("failed to set notebook phase for %s: %v", key, phaseErr)
+		}
 		return err
 	}
 	if err = c.setNotebookPhase(n, jupyterv1.NotebookPhaseRunning); err != nil {

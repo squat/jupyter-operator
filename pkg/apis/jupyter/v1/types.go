@@ -41,10 +41,14 @@ type Notebook struct {
 // NotebookSpec is the description and configuration of a notebook.
 // +k8s:openapi-gen=true
 type NotebookSpec struct {
+	// Flavor is the type of official Jupyter image to use
+	// for the notebook pod. It is the "X" in "jupyter/X-notebook".
+	// Defaults to "minimal". For descriptions of valid images, see:
+	// https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html.
+	// +optional
+	Flavor *NotebookFlavor `json:"flavor,omitempty"`
 	// Whether or not to add a GPU resource to the notebook pod.
 	GPU bool `json:"gpu"`
-	// Owner is the user who owns the notebook.
-	Owner string `json:"owner"`
 	// Host to set on the notebook ingress resource.
 	// If no host is provided, no ingress will be created.
 	// +optional
@@ -53,6 +57,8 @@ type NotebookSpec struct {
 	// Defaults to the notebook service created by the operator.
 	// +optional
 	Ingress *extensionsv1beta1.IngressBackend `json:"ingress,omitempty"`
+	// Owner is the user who owns the notebook.
+	Owner string `json:"owner"`
 	// Password to use to access the notebook.
 	// +optional
 	Password *string `json:"password,omitempty"`
@@ -72,19 +78,19 @@ const (
 	// but not all the resources are ready.
 	NotebookPhasePending NotebookPhase = "Pending"
 	// NotebookPhaseRunning means that all the notebook resources are ready.
-	NotebookPhaseRunning = "Running"
+	NotebookPhaseRunning NotebookPhase = "Running"
 	// NotebookPhaseUnknown means that for some reason the state of the notebook
 	// could not be determined.
-	NotebookPhaseUnknown = "Unknown"
+	NotebookPhaseUnknown NotebookPhase = "Unknown"
 	// NotebookPhaseFailed means that the system was unable to create at least one
 	// of the notebook's resources.
-	NotebookPhaseFailed = "Failed"
+	NotebookPhaseFailed NotebookPhase = "Failed"
 )
 
 // NotebookTLS defines the notebook's TLS strategy.
 type NotebookTLS string
 
-var (
+const (
 	// NotebookTLSSelfSigned means that the notebook server will serve HTTP over TLS using
 	// certificates signed by the controller. Ingress to the notebook will terminate TLS at
 	// notebook and not at the ingress controller.
@@ -98,6 +104,39 @@ var (
 	// NotebookTLSNone means that the notebook server will serve plain HTTP with no encryption.
 	// The ingress resource will not have a TLS entry so the notebook will only be accessible over HTTP.
 	NotebookTLSNone NotebookTLS = "none"
+)
+
+// NotebookFlavor is the type of official Jupyter image to use
+// It is the "X" in "jupyter/X-notebook".
+// For descriptions of valid images, see:
+// https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html.
+type NotebookFlavor string
+
+const (
+	// NotebookFlavorBase is the most basic type of notebook.
+	// See: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-base-notebook.
+	NotebookFlavorBase NotebookFlavor = "base"
+	// NotebookFlavorMinimal adds command line tools useful when working in Jupyter applications.
+	// See: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-minimal-notebook.
+	NotebookFlavorMinimal NotebookFlavor = "minimal"
+	// NotebookFlavorR includes popular packages from the R ecosystem.
+	// See: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-minimal-notebook.
+	NotebookFlavorR NotebookFlavor = "r"
+	// NotebookFlavorScipy includes popular packages from the scientific Python ecosystem.
+	// See: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-scipy-notebook
+	NotebookFlavorScipy NotebookFlavor = "scipy"
+	// NotebookTensorFlow includes popular Python deep learning libraries.
+	// See: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-tensorflow-notebook
+	NotebookFlavorTensorFlow NotebookFlavor = "tensorflow"
+	// NotebookFlavorDataScience includes includes libraries for data analysis from the Julia, Python, and R communities.
+	// See: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-datascience-notebook
+	NotebookFlavorDataScience NotebookFlavor = "datascience"
+	// NotebookFlavorPyspark includes Python support for Apache Spark, optionally on Mesos.
+	// See: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-pyspark-notebook
+	NotebookFlavorPyspark NotebookFlavor = "pyspark"
+	// NotebookFlavorAllSpark includes Python, R, and Scala support for Apache Spark, optionally on Mesos.
+	// See: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-all-spark-notebook
+	NotebookFlavorAllSpark NotebookFlavor = "all-spark"
 )
 
 // NotebookStatus describes the current status of the notebook resource.
@@ -163,7 +202,13 @@ func (n *Notebook) Validate() error {
 // SetDefaults applies default values to the receiver Notebook.
 func (n *Notebook) SetDefaults() bool {
 	var changed bool
+	defaultFlavor := NotebookFlavorMinimal
+	defaultTLS := NotebookTLSSelfSigned
 	emptyString := ""
+	if n.Spec.Flavor == nil {
+		n.Spec.Flavor = &defaultFlavor
+		changed = true
+	}
 	if n.Spec.Host == nil {
 		n.Spec.Host = &emptyString
 		changed = true
@@ -173,7 +218,7 @@ func (n *Notebook) SetDefaults() bool {
 		changed = true
 	}
 	if n.Spec.TLS == nil {
-		n.Spec.TLS = &NotebookTLSSelfSigned
+		n.Spec.TLS = &defaultTLS
 		changed = true
 	}
 	if n.Spec.Users == nil {

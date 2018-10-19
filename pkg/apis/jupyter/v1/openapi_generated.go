@@ -318,17 +318,17 @@ func schema_pkg_apis_jupyter_v1_NotebookSpec(ref common.ReferenceCallback) commo
 			SchemaProps: spec.SchemaProps{
 				Description: "NotebookSpec is the description and configuration of a notebook.",
 				Properties: map[string]spec.Schema{
+					"flavor": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Flavor is the type of official Jupyter image to use for the notebook pod. It is the \"X\" in \"jupyter/X-notebook\". Defaults to \"minimal\". For descriptions of valid images, see: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"gpu": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Whether or not to add a GPU resource to the notebook pod.",
 							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
-					"owner": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Owner is the user who owns the notebook.",
-							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
@@ -343,6 +343,13 @@ func schema_pkg_apis_jupyter_v1_NotebookSpec(ref common.ReferenceCallback) commo
 						SchemaProps: spec.SchemaProps{
 							Description: "Ingress backend to use for the notebook ingress resource. Defaults to the notebook service created by the operator.",
 							Ref:         ref("k8s.io/api/extensions/v1beta1.IngressBackend"),
+						},
+					},
+					"owner": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Owner is the user who owns the notebook.",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"password": {

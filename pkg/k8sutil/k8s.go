@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	notebookBaseImage                    = "jupyterhub/singleuser:latest"
+	notebookImageTemplate                = "jupyter/%s:latest"
 	notebookContainerName                = "notebook"
 	notebookPort                         = 8888
 	notebookPortName                     = "notebook-port"

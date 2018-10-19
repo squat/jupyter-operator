@@ -22,7 +22,7 @@ import (
 func CalculatePod(n *jupyterv1.Notebook) *corev1.Pod {
 	container := corev1.Container{
 		Args:            []string{"start-notebook.sh", "--NotebookApp.token="},
-		Image:           notebookBaseImage,
+		Image:           fmt.Sprintf(notebookImageTemplate, *n.Spec.Flavor),
 		ImagePullPolicy: corev1.PullAlways,
 		Name:            notebookContainerName,
 		Ports: []corev1.ContainerPort{
@@ -99,14 +99,12 @@ func CalculatePod(n *jupyterv1.Notebook) *corev1.Pod {
 			Operator: corev1.TolerationOpExists,
 		})
 	}
-	labels := sapyensLabels(n.Name, n.Spec.Owner)
-	labels["component"] = "singleuser-server"
 	automountServiceAccountToken := false
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        resourceName(n.Name),
 			Namespace:   n.Namespace,
-			Labels:      labels,
+			Labels:      sapyensLabels(n.Name, n.Spec.Owner),
 			Annotations: map[string]string{},
 		},
 		Spec: corev1.PodSpec{
