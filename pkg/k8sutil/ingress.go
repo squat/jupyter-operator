@@ -65,12 +65,11 @@ func CalculateIngress(n *jupyterv1.Notebook) *extensionsv1beta1.Ingress {
 			tls.SecretName = fmt.Sprintf(notebookIngressTLSSecretNameTemplate, resourceName(n.Name))
 			ing.Annotations["kubernetes.io/tls-acme"] = "true"
 		} else {
-			ing.Annotations["ingress.kubernetes.io/ssl-passthrough"] = "true"
+			ing.Annotations["nginx.ingress.kubernetes.io/ssl-passthrough"] = "true"
 		}
 		ing.Spec.TLS = []extensionsv1beta1.IngressTLS{tls}
-	}
-	if ShouldHaveCerts(n) {
-		ing.Annotations["ingress.kubernetes.io/secure-backends"] = "true"
+		ing.Annotations["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTPS"
+		ing.Annotations["nginx.ingress.kubernetes.io/ssl-redirect"] = "true"
 	}
 	addOwnerRefToObject(ing.GetObjectMeta(), n.AsOwner())
 	return &ing
