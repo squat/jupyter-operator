@@ -2,7 +2,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: jupyter-operator
-  namespace: default
+  namespace: jupyter
 spec:
   replicas: 1
   template:
@@ -14,4 +14,5 @@ spec:
       - name: jupyter-operator
         image: squat/jupyter-operator
         args:
-        - --namespace=default
+        - --namespace=jupyter
+      serviceAccountName: jupyter-operator

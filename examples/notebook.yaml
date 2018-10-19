@@ -1,7 +1,7 @@
 apiVersion: jupyter.sapyens.org/v1
 kind: Notebook
 metadata:
-  name: rl
+  name: example
   namespace: default
 spec:
   gpu: false
