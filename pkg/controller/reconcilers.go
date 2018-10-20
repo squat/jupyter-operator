@@ -24,7 +24,6 @@ func (c *Controller) reconcilers(n *jupyterv1.Notebook) []reconciler {
 		c.statefulSetReconciler(n),
 		c.ingressReconciler(n),
 	}
-
 }
 
 func (c *Controller) ingressReconciler(n *jupyterv1.Notebook) reconciler {

@@ -99,7 +99,7 @@ func CalculateStatefulSet(n *jupyterv1.Notebook) *appsv1.StatefulSet {
 	terminationGracePeriod := int64(120)
 	var automountServiceAccountToken bool
 	var serviceAccountName string
-	if n.Spec.ServiceAccountName != nil {
+	if *n.Spec.ServiceAccountName != "" {
 		automountServiceAccountToken = true
 		serviceAccountName = *n.Spec.ServiceAccountName
 	}
