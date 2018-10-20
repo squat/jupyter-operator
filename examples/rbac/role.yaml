@@ -13,7 +13,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - pods
   - secrets
   - services
   verbs:
@@ -22,5 +21,11 @@ rules:
   - extensions
   resources:
   - ingresses
+  verbs:
+  - "*"
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
   verbs:
   - "*"
