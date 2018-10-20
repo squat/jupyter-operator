@@ -6,6 +6,7 @@ import (
 	jupyterv1 "github.com/squat/jupyter-operator/pkg/apis/jupyter/v1"
 	"github.com/squat/jupyter-operator/pkg/k8sutil"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 )
@@ -20,7 +21,7 @@ func (c *Controller) reconcilers(n *jupyterv1.Notebook) []reconciler {
 	return []reconciler{
 		c.serviceReconciler(n),
 		c.secretReconciler(n),
-		c.podReconciler(n),
+		c.statefulSetReconciler(n),
 		c.ingressReconciler(n),
 	}
 
@@ -44,16 +45,16 @@ func (c *Controller) ingressReconciler(n *jupyterv1.Notebook) reconciler {
 	return r
 }
 
-func (c *Controller) podReconciler(n *jupyterv1.Notebook) reconciler {
-	r := reconciler{resourceType: reflect.TypeOf(&corev1.Pod{})}
-	if podShouldExist(n) {
-		pod := k8sutil.CalculatePod(n)
+func (c *Controller) statefulSetReconciler(n *jupyterv1.Notebook) reconciler {
+	r := reconciler{resourceType: reflect.TypeOf(&appsv1.StatefulSet{})}
+	if statefulSetShouldExist(n) {
+		sts := k8sutil.CalculateStatefulSet(n)
 		r.reconcile = func() error {
-			return k8sutil.CreateOrUpdatePod(c.client.CoreV1().Pods(n.Namespace), c.podLister, c.logger, pod)
+			return k8sutil.CreateOrUpdateStatefulSet(c.client.Apps().StatefulSets(n.Namespace), c.statefulSetLister, c.logger, sts)
 		}
-		r.wait = func() error { return k8sutil.WaitForPod(c.podLister, c.logger, pod) }
+		r.wait = func() error { return k8sutil.WaitForStatefulSet(c.statefulSetLister, c.logger, sts) }
 	} else {
-		r.reconcile = func() error { return k8sutil.DeletePod(c.client.CoreV1().Pods(n.Namespace), n) }
+		r.reconcile = func() error { return k8sutil.DeleteStatefulSet(c.client.Apps().StatefulSets(n.Namespace), n) }
 	}
 	return r
 }
@@ -84,7 +85,7 @@ func (c *Controller) serviceReconciler(n *jupyterv1.Notebook) reconciler {
 	return r
 }
 
-func podShouldExist(n *jupyterv1.Notebook) bool {
+func statefulSetShouldExist(n *jupyterv1.Notebook) bool {
 	if n == nil || n.DeletionTimestamp != nil {
 		return false
 	}

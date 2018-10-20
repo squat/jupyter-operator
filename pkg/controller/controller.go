@@ -16,14 +16,17 @@ import (
 	"github.com/Sirupsen/logrus"
 	crdutils "github.com/ant31/crd-validation/pkg"
 	"github.com/hashicorp/terraform/helper/mutexkv"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	appsv1informers "k8s.io/client-go/informers/apps/v1"
 	v1informers "k8s.io/client-go/informers/core/v1"
 	v1beta1informers "k8s.io/client-go/informers/extensions/v1beta1"
+	appsv1listers "k8s.io/client-go/listers/apps/v1"
 	v1listers "k8s.io/client-go/listers/core/v1"
 	v1beta1listers "k8s.io/client-go/listers/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
@@ -52,13 +55,13 @@ type Controller struct {
 	informers map[reflect.Type]cache.SharedIndexInformer
 	// notebookLister can list/get notebooks
 	notebookLister jupyterv1listers.NotebookLister
-	// ingressLister can list/get ingresses from the shared informer's store
+	// ingressLister can list/get Ingresses from the shared informer's store
 	ingressLister v1beta1listers.IngressLister
-	// podLister can list/get pods from the shared informer's store
-	podLister v1listers.PodLister
-	// secretLister can list/get secrets from the shared informer's store
+	// statefulSetLister can list/get StatefulSets from the shared informer's store
+	statefulSetLister appsv1listers.StatefulSetLister
+	// secretLister can list/get Secrets from the shared informer's store
 	secretLister v1listers.SecretLister
-	// serviceLister can list/get services from the shared informer's store
+	// serviceLister can list/get Services from the shared informer's store
 	serviceLister v1listers.ServiceLister
 }
 
@@ -79,9 +82,9 @@ func New(cfg Config) *Controller {
 	controller.notebookLister = jupyterv1listers.NewNotebookLister(informer.GetIndexer())
 	controller.informers[reflect.TypeOf(&jupyterv1.Notebook{})] = informer
 
-	informer = v1informers.NewPodInformer(controller.client, cfg.Namespace, 0, indexer)
-	controller.podLister = v1listers.NewPodLister(informer.GetIndexer())
-	controller.informers[reflect.TypeOf(&v1.Pod{})] = informer
+	informer = appsv1informers.NewStatefulSetInformer(controller.client, cfg.Namespace, 0, indexer)
+	controller.statefulSetLister = appsv1listers.NewStatefulSetLister(informer.GetIndexer())
+	controller.informers[reflect.TypeOf(&appsv1.StatefulSet{})] = informer
 
 	informer = v1informers.NewSecretInformer(controller.client, cfg.Namespace, 0, indexer)
 	controller.secretLister = v1listers.NewSecretLister(informer.GetIndexer())
@@ -104,7 +107,7 @@ func (c *Controller) Run(stop <-chan struct{}, workers int) error {
 
 	for {
 		c.logger.Info("initializing CRD")
-		err := c.initCRD()
+		err := c.initCRD(stop)
 		if err == nil {
 			break
 		}
@@ -131,7 +134,7 @@ func (c *Controller) Run(stop <-chan struct{}, workers int) error {
 	return nil
 }
 
-func (c *Controller) initCRD() error {
+func (c *Controller) initCRD(stop <-chan struct{}) error {
 	err := c.createCRD()
 	if err != nil {
 		if apierrors.IsAlreadyExists(err) {
@@ -140,7 +143,7 @@ func (c *Controller) initCRD() error {
 		}
 		return fmt.Errorf("failed to create CRD: %v", err)
 	}
-	return c.waitForCRD()
+	return c.waitForCRD(stop)
 }
 
 func (c *Controller) createCRD() error {
@@ -161,9 +164,9 @@ func (c *Controller) createCRD() error {
 	return err
 }
 
-func (c *Controller) waitForCRD() error {
+func (c *Controller) waitForCRD(stop <-chan struct{}) error {
 	// wait for CRD being established
-	err := wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
+	err := wait.PollUntil(500*time.Millisecond, func() (bool, error) {
 		crd, err := c.client.APIExtensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(jupyterv1.NotebookName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
@@ -182,7 +185,7 @@ func (c *Controller) waitForCRD() error {
 			}
 		}
 		return false, nil
-	})
+	}, stopableTimer(60*time.Second, stop))
 	if err != nil {
 		return fmt.Errorf("failed to wait for CRD to be created: %v", err)
 	}
@@ -338,6 +341,20 @@ func (c *Controller) resolveOwnerRef(namespace string, ref *metav1.OwnerReferenc
 	return n
 }
 
-func (c *Controller) getPodsForNotebook(notebook *jupyterv1.Notebook) ([]*v1.Pod, error) {
-	return nil, nil
+func stopableTimer(d time.Duration, stop <-chan struct{}) <-chan struct{} {
+	t := time.NewTimer(d)
+	c := make(chan struct{})
+
+	go func() {
+		defer close(c)
+		select {
+		case <-t.C:
+			return
+		case <-stop:
+			t.Stop()
+			return
+		}
+	}()
+
+	return c
 }

@@ -35,7 +35,7 @@ func CalculateService(n *jupyterv1.Notebook) *corev1.Service {
 					Protocol: corev1.ProtocolTCP,
 				},
 			},
-			Selector: labels,
+			Selector: addSapyensLabels(make(map[string]string), n.Name, n.Spec.Owner),
 			Type:     corev1.ServiceTypeClusterIP,
 		},
 	}

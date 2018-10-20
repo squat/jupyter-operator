@@ -26,10 +26,9 @@ func resourceName(name string) string {
 	return fmt.Sprintf(notebookNameTemplate, name)
 }
 
-func managedByOperatorLabels() map[string]string {
-	return map[string]string{
-		managedByOperatorLabel: managedByOperatorLabelValue,
-	}
+func addManagedByOperatorLabels(labels map[string]string) map[string]string {
+	labels[managedByOperatorLabel] = managedByOperatorLabelValue
+	return labels
 }
 
 func isManagedByOperator(labels map[string]string) bool {
@@ -40,10 +39,16 @@ func isManagedByOperator(labels map[string]string) bool {
 	return false
 }
 
+func addSapyensLabels(labels map[string]string, name, owner string) map[string]string {
+	labels[sapyensNotebookLabel] = name
+	labels[sapyensOwnerLabel] = owner
+	return labels
+}
+
 func sapyensLabels(name, owner string) map[string]string {
-	l := managedByOperatorLabels()
-	l[sapyensNotebookLabel] = name
-	l[sapyensOwnerLabel] = owner
+	l := make(map[string]string)
+	addManagedByOperatorLabels(l)
+	addSapyensLabels(l, name, owner)
 	return l
 }
 
