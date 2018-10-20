@@ -1,12 +1,11 @@
-apiVersion: jupyter.sapyens.org/v1
+apiVersion: jupyter.squat.ai/v1
 kind: Notebook
 metadata:
-  name: example
+  name: example-notebook
   namespace: default
 spec:
   gpu: false
   owner: squat
-  host: sapyens.org
+  host: example.com
   # mypassword
   password: sha1:0e112c3ddfce:a68df677475c2b47b6e86d0467eec97ac5f4b85a
-  tls: acme

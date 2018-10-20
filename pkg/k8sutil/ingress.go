@@ -27,7 +27,7 @@ func CalculateIngress(n *jupyterv1.Notebook) *extensionsv1beta1.Ingress {
 	if n.Spec.Ingress != nil {
 		backend = *n.Spec.Ingress
 	}
-	labels := sapyensLabels(n.Name, n.Spec.Owner)
+	labels := notebookLabels(n.Name, n.Spec.Owner)
 	ing := extensionsv1beta1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      resourceName(n.Name),

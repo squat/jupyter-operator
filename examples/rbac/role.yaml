@@ -5,7 +5,7 @@ metadata:
   namespace: jupyter
 rules:
 - apiGroups:
-  - jupyter.sapyens.org
+  - jupyter.squat.ai
   resources:
   - notebooks
   verbs:

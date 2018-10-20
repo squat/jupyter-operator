@@ -14,7 +14,7 @@ var (
 )
 
 // GroupName is the group name used in this package.
-const GroupName = "jupyter.sapyens.org"
+const GroupName = "jupyter.squat.ai"
 
 // SchemeGroupVersion is the group version used to register these objects.
 var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: "v1"}

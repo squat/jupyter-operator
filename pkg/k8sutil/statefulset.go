@@ -103,7 +103,7 @@ func CalculateStatefulSet(n *jupyterv1.Notebook) *appsv1.StatefulSet {
 		automountServiceAccountToken = true
 		serviceAccountName = *n.Spec.ServiceAccountName
 	}
-	podLabels := addSapyensLabels(make(map[string]string), n.Name, n.Spec.Owner)
+	podLabels := addMatchLabels(make(map[string]string), n.Name, n.Spec.Owner)
 	pod := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: podLabels,
@@ -127,7 +127,7 @@ func CalculateStatefulSet(n *jupyterv1.Notebook) *appsv1.StatefulSet {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      resourceName(n.Name),
 			Namespace: n.Namespace,
-			Labels:    sapyensLabels(n.Name, n.Spec.Owner),
+			Labels:    notebookLabels(n.Name, n.Spec.Owner),
 		},
 		Spec: appsv1.StatefulSetSpec{
 			Replicas: &replicas,
