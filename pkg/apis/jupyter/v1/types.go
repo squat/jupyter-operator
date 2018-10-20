@@ -3,6 +3,8 @@ package v1
 import (
 	"encoding/json"
 	"errors"
+	"regexp"
+	"strings"
 
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,6 +61,10 @@ type NotebookSpec struct {
 	Ingress *extensionsv1beta1.IngressBackend `json:"ingress,omitempty"`
 	// Owner is the user who owns the notebook.
 	Owner string `json:"owner"`
+	// Packages is a list of additional packages that should be installed
+	// on the notebook via "conda install".
+	// +optional
+	Packages []string `json:"packages,omitempty"`
 	// Password to use to access the notebook.
 	// +optional
 	Password *string `json:"password,omitempty"`
@@ -187,7 +193,7 @@ func (n *Notebook) Validate() error {
 		}
 	}
 	if n.Spec.Ingress != nil {
-		if n.Spec.Ingress.ServiceName == "" || n.Spec.Ingress.ServicePort.String() == "" {
+		if (n.Spec.Ingress.ServiceName == "") != (n.Spec.Ingress.ServicePort.String() == "") {
 			return errors.New("ingress service name and port must be both defined or both undefined")
 		}
 	}
@@ -197,6 +203,23 @@ func (n *Notebook) Validate() error {
 	for _, user := range n.Spec.Users {
 		if user == "" {
 			return errors.New("users must be a list of valid usernames")
+		}
+	}
+	var validPackageName = regexp.MustCompile(`^[a-zA-Z0-9-_]+$`)
+	var validPackageVersion = regexp.MustCompile(`^[a-zA-Z0-9.]+$`)
+	packageErr := errors.New(`packages must be a valid list of package names and versions matching "package" or "package=version"`)
+	for _, p := range n.Spec.Packages {
+		parts := strings.Split(p, "=")
+		if len(parts) > 2 {
+			return packageErr
+		}
+		if !validPackageName.MatchString(parts[0]) {
+			return packageErr
+		}
+		if len(parts) == 2 {
+			if !validPackageVersion.MatchString(parts[1]) {
+				return packageErr
+			}
 		}
 	}
 	return nil
@@ -214,6 +237,10 @@ func (n *Notebook) SetDefaults() bool {
 	}
 	if n.Spec.Host == nil {
 		n.Spec.Host = &emptyString
+		changed = true
+	}
+	if n.Spec.Packages == nil {
+		n.Spec.Packages = []string{}
 		changed = true
 	}
 	if n.Spec.Password == nil {

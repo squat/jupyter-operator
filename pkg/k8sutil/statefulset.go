@@ -21,10 +21,25 @@ import (
 
 // CalculateStatefulSet creates a new k8s StatefulSet struct configured for the given notebook.
 func CalculateStatefulSet(n *jupyterv1.Notebook) *appsv1.StatefulSet {
+	var lifecycle *corev1.Lifecycle
+	if len(n.Spec.Packages) != 0 {
+		lifecycle = new(corev1.Lifecycle)
+		exec := corev1.ExecAction{
+			Command: []string{
+				"conda",
+				"install",
+				"-y",
+			},
+		}
+		exec.Command = append(exec.Command, n.Spec.Packages...)
+		postStart := corev1.Handler{Exec: &exec}
+		lifecycle.PostStart = &postStart
+	}
 	container := corev1.Container{
 		Args:            []string{"start-notebook.sh", "--NotebookApp.token="},
 		Image:           fmt.Sprintf(notebookImageTemplate, *n.Spec.Flavor),
 		ImagePullPolicy: corev1.PullAlways,
+		Lifecycle:       lifecycle,
 		Name:            notebookContainerName,
 		Ports: []corev1.ContainerPort{
 			{

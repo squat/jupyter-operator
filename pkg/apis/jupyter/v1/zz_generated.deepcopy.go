@@ -106,6 +106,11 @@ func (in *NotebookSpec) DeepCopyInto(out *NotebookSpec) {
 		*out = new(v1beta1.IngressBackend)
 		**out = **in
 	}
+	if in.Packages != nil {
+		in, out := &in.Packages, &out.Packages
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Password != nil {
 		in, out := &in.Password, &out.Password
 		*out = new(string)

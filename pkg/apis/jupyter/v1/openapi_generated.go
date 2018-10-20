@@ -352,6 +352,20 @@ func schema_pkg_apis_jupyter_v1_NotebookSpec(ref common.ReferenceCallback) commo
 							Format:      "",
 						},
 					},
+					"packages": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Packages is a list of additional packages that should be installed on the notebook via \"conda install\".",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
 					"password": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Password to use to access the notebook.",
