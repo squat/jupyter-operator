@@ -39,6 +39,7 @@ type NotebooksGetter interface {
 type NotebookInterface interface {
 	Create(*v1.Notebook) (*v1.Notebook, error)
 	Update(*v1.Notebook) (*v1.Notebook, error)
+	UpdateStatus(*v1.Notebook) (*v1.Notebook, error)
 	Delete(name string, options *metav1.DeleteOptions) error
 	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
 	Get(name string, options metav1.GetOptions) (*v1.Notebook, error)
@@ -116,6 +117,22 @@ func (c *notebooks) Update(notebook *v1.Notebook) (result *v1.Notebook, err erro
 		Namespace(c.ns).
 		Resource("notebooks").
 		Name(notebook.Name).
+		Body(notebook).
+		Do().
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+
+func (c *notebooks) UpdateStatus(notebook *v1.Notebook) (result *v1.Notebook, err error) {
+	result = &v1.Notebook{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("notebooks").
+		Name(notebook.Name).
+		SubResource("status").
 		Body(notebook).
 		Do().
 		Into(result)

@@ -15,13 +15,13 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	crdutils "github.com/ant31/crd-validation/pkg"
-	"github.com/hashicorp/terraform/helper/mutexkv"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1informers "k8s.io/client-go/informers/apps/v1"
 	v1informers "k8s.io/client-go/informers/core/v1"
@@ -32,8 +32,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
-
-const initRetryInterval = 10 * time.Second
 
 // Config is the configuration for a notebook controller.
 type Config struct {
@@ -49,7 +47,6 @@ type Controller struct {
 	Config
 	client client.Interface
 	logger *logrus.Entry
-	mutex  *mutexkv.MutexKV
 	queue  workqueue.RateLimitingInterface
 
 	informers map[reflect.Type]cache.SharedIndexInformer
@@ -72,7 +69,6 @@ func New(cfg Config) *Controller {
 		client:    client.New(cfg.Kubeconfig),
 		informers: map[reflect.Type]cache.SharedIndexInformer{},
 		logger:    logrus.WithField("pkg", "controller"),
-		mutex:     mutexkv.NewMutexKV(),
 		queue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "notebook"),
 	}
 
@@ -105,15 +101,9 @@ func New(cfg Config) *Controller {
 func (c *Controller) Run(stop <-chan struct{}, workers int) error {
 	defer c.queue.ShutDown()
 
-	for {
-		c.logger.Info("initializing CRD")
-		err := c.initCRD(stop)
-		if err == nil {
-			break
-		}
+	if err := c.initCRD(stop); err != nil {
 		c.logger.Errorf("failed to initialize CRD: %v", err)
-		c.logger.Infof("retying CRD initialization in %v", initRetryInterval)
-		<-time.After(initRetryInterval)
+		return fmt.Errorf("failed to initialize CRD: %v", err)
 	}
 
 	for _, i := range c.informers {
@@ -134,21 +124,9 @@ func (c *Controller) Run(stop <-chan struct{}, workers int) error {
 	return nil
 }
 
-func (c *Controller) initCRD(stop <-chan struct{}) error {
-	err := c.createCRD()
-	if err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			c.logger.Info("CRD already exists")
-			return nil
-		}
-		return fmt.Errorf("failed to create CRD: %v", err)
-	}
-	return c.waitForCRD(stop)
-}
-
 func (c *Controller) createCRD() error {
 	crd := crdutils.NewCustomResourceDefinition(crdutils.Config{
-		SpecDefinitionName:    jupyterv1.NotebookName,
+		SpecDefinitionName:    "github.com/squat/jupyter-operator/pkg/apis/jupyter/v1.Notebook",
 		EnableValidation:      true,
 		ResourceScope:         string(apiextensionsv1beta1.NamespaceScoped),
 		Group:                 jupyterv1.GroupName,
@@ -158,18 +136,39 @@ func (c *Controller) createCRD() error {
 		ShortNames:            jupyterv1.NotebookShortNames,
 		GetOpenAPIDefinitions: jupyterv1.GetOpenAPIDefinitions,
 	})
-	crd.Spec.Subresources = nil
+	crd.Spec.Subresources.Scale = nil
 
 	_, err := c.client.APIExtensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
-	return err
+	if err == nil {
+		return nil
+	}
+	if apierrors.IsAlreadyExists(err) {
+		c.logger.Info("CRD already exists")
+		return nil
+	}
+	return fmt.Errorf("failed to create CRD: %v", err)
 }
 
-func (c *Controller) waitForCRD(stop <-chan struct{}) error {
-	// wait for CRD being established
+func (c *Controller) initCRD(stop <-chan struct{}) error {
+	c.logger.Info("initializing CRD")
+	// create CRD
 	err := wait.PollUntil(500*time.Millisecond, func() (bool, error) {
+		if err := c.createCRD(); err != nil {
+			c.logger.Warnf("unable to create CRD: %v", err)
+			return false, nil
+		}
+		return true, nil
+	}, stopableTimer(60*time.Second, stop))
+	if err != nil {
+		return fmt.Errorf("failed creating CRD: %v", err)
+	}
+
+	// wait for CRD being established
+	err = wait.PollUntil(500*time.Millisecond, func() (bool, error) {
 		crd, err := c.client.APIExtensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(jupyterv1.NotebookName, metav1.GetOptions{})
 		if err != nil {
-			return false, err
+			c.logger.Warnf("failed to get CRD: %v", err)
+			return false, nil
 		}
 		for _, cond := range crd.Status.Conditions {
 			switch cond.Type {
@@ -187,7 +186,7 @@ func (c *Controller) waitForCRD(stop <-chan struct{}) error {
 		return false, nil
 	}, stopableTimer(60*time.Second, stop))
 	if err != nil {
-		return fmt.Errorf("failed to wait for CRD to be created: %v", err)
+		return fmt.Errorf("failed waiting for CRD to be created: %v", err)
 	}
 	return nil
 }
@@ -243,9 +242,12 @@ func (c *Controller) processNextWorkItem() bool {
 	}
 	defer c.queue.Done(key)
 	err := c.sync(key.(string))
-	if err != nil {
-		c.logger.Errorf("failed processing %q: %v", key, err)
+	if err == nil {
+		c.queue.Forget(key)
+		return true
 	}
+	utilruntime.HandleError(fmt.Errorf("syncing %q failed: %v", key, err))
+	c.queue.AddRateLimited(key)
 	return true
 }
 
@@ -260,8 +262,6 @@ func (c *Controller) enqueue(notebook *jupyterv1.Notebook) {
 }
 
 func (c *Controller) sync(key string) error {
-	c.mutex.Lock(key)
-	defer c.mutex.Unlock(key)
 	c.logger.Debugf("syncing notebook %q", key)
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {

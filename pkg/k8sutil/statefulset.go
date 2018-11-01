@@ -113,10 +113,8 @@ func CalculateStatefulSet(n *jupyterv1.Notebook) *appsv1.StatefulSet {
 	}
 	terminationGracePeriod := int64(120)
 	var automountServiceAccountToken bool
-	var serviceAccountName string
 	if *n.Spec.ServiceAccountName != "" {
 		automountServiceAccountToken = true
-		serviceAccountName = *n.Spec.ServiceAccountName
 	}
 	podLabels := addMatchLabels(make(map[string]string), n.Name, n.Spec.Owner)
 	pod := corev1.PodTemplateSpec{
@@ -126,11 +124,12 @@ func CalculateStatefulSet(n *jupyterv1.Notebook) *appsv1.StatefulSet {
 		Spec: corev1.PodSpec{
 			AutomountServiceAccountToken:  &automountServiceAccountToken,
 			Containers:                    []corev1.Container{container},
+			DeprecatedServiceAccount:      *n.Spec.ServiceAccountName,
 			DNSPolicy:                     corev1.DNSClusterFirst,
 			RestartPolicy:                 corev1.RestartPolicyAlways,
 			SchedulerName:                 corev1.DefaultSchedulerName,
 			SecurityContext:               &corev1.PodSecurityContext{},
-			ServiceAccountName:            serviceAccountName,
+			ServiceAccountName:            *n.Spec.ServiceAccountName,
 			TerminationGracePeriodSeconds: &terminationGracePeriod,
 			Tolerations:                   tolerations,
 			Volumes:                       volumes,

@@ -65,7 +65,7 @@ func (c *Controller) setNotebookPhase(n *jupyterv1.Notebook, phase jupyterv1.Not
 	}
 	n.Status.Phase = phase
 	c.logger.Infof("setting notebook phase to %q", phase)
-	_, err := c.client.VersionedInterface().JupyterV1().Notebooks(n.Namespace).Update(n)
+	_, err := c.client.VersionedInterface().JupyterV1().Notebooks(n.Namespace).UpdateStatus(n)
 	return err
 }
 

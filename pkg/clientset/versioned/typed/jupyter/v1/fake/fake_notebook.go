@@ -102,6 +102,18 @@ func (c *FakeNotebooks) Update(notebook *jupyterv1.Notebook) (result *jupyterv1.
 	return obj.(*jupyterv1.Notebook), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeNotebooks) UpdateStatus(notebook *jupyterv1.Notebook) (*jupyterv1.Notebook, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(notebooksResource, "status", c.ns, notebook), &jupyterv1.Notebook{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*jupyterv1.Notebook), err
+}
+
 // Delete takes name of the notebook and deletes it. Returns an error if one occurs.
 func (c *FakeNotebooks) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.

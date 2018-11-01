@@ -23,7 +23,6 @@ var NotebookShortNames = []string{"nb", "notebook"}
 
 // Notebook is a Jupyter notebook instance that is run as a pod.
 // +genclient
-// +genclient:noStatus
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +k8s:openapi-gen=true
 type Notebook struct {

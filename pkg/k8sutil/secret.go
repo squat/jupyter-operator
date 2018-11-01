@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
 	jupyterv1 "github.com/squat/jupyter-operator/pkg/apis/jupyter/v1"
 	"github.com/squat/jupyter-operator/pkg/tls"
@@ -50,7 +51,7 @@ func CalculateSecret(n *jupyterv1.Notebook, caCert *x509.Certificate, caKey *rsa
 
 // CreateOrUpdateSecret will update the given secret, if it already exists, or create it if it doesn't.
 // This function will adopt matching resources that are managed by the operator.
-func CreateOrUpdateSecret(c v1client.SecretInterface, l v1listers.SecretLister, caCert *x509.Certificate, secret *corev1.Secret) error {
+func CreateOrUpdateSecret(c v1client.SecretInterface, l v1listers.SecretLister, caCert *x509.Certificate, logger logrus.StdLogger, secret *corev1.Secret) error {
 	s, err := l.Secrets(secret.Namespace).Get(secret.Name)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
@@ -67,6 +68,7 @@ func CreateOrUpdateSecret(c v1client.SecretInterface, l v1listers.SecretLister, 
 			if err = cert.CheckSignatureFrom(caCert); err == nil {
 				secret.Data[corev1.TLSCertKey] = s.Data[corev1.TLSCertKey]
 				secret.Data[corev1.TLSPrivateKeyKey] = s.Data[corev1.TLSPrivateKeyKey]
+				logger.Print("x509 certificate was not signed by this operator's CA; recreating certificates")
 			}
 		}
 	}

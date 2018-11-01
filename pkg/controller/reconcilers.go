@@ -63,7 +63,7 @@ func (c *Controller) secretReconciler(n *jupyterv1.Notebook) reconciler {
 	if secretShouldExist(n) {
 		secret := k8sutil.CalculateSecret(n, c.Config.CACert, c.Config.Key)
 		r.reconcile = func() error {
-			return k8sutil.CreateOrUpdateSecret(c.client.CoreV1().Secrets(n.Namespace), c.secretLister, c.Config.CACert, secret)
+			return k8sutil.CreateOrUpdateSecret(c.client.CoreV1().Secrets(n.Namespace), c.secretLister, c.Config.CACert, c.logger, secret)
 		}
 	} else {
 		r.reconcile = func() error { return k8sutil.DeleteSecret(c.client.CoreV1().Secrets(n.Namespace), n) }
