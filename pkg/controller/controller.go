@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/go-test/deep"
 	jupyterv1 "github.com/squat/jupyter-operator/pkg/apis/jupyter/v1"
 	"github.com/squat/jupyter-operator/pkg/client"
 	jupyterv1informers "github.com/squat/jupyter-operator/pkg/informers/externalversions/jupyter/v1"
@@ -302,6 +303,16 @@ func (c *Controller) sync(key string) error {
 		n.Kind = jupyterv1.NotebookKind
 		n.APIVersion = jupyterv1.SchemeGroupVersion.String()
 	}
+	specDiff := deep.Equal(n.Spec, notebook.Spec)
+	if specDiff != nil {
+		fmt.Println(specDiff)
+		c.logger.Debugf("setting defaults for %s", key)
+		if _, err := c.client.VersionedInterface().JupyterV1().Notebooks(n.Namespace).Update(n); err != nil {
+			return fmt.Errorf("failed to set defaults for %s: %v", key, err)
+		}
+		return nil
+	}
+
 	if n.Status.Phase != jupyterv1.NotebookPhaseRunning && n.Status.Phase != jupyterv1.NotebookPhaseFailed {
 		if err = c.setNotebookPhase(n, jupyterv1.NotebookPhasePending); err != nil {
 			c.logger.Warnf("failed to set notebook phase for %s: %v", key, err)

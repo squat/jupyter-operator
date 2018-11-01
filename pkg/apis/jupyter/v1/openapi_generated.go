@@ -416,6 +416,13 @@ func schema_pkg_apis_jupyter_v1_NotebookStatus(ref common.ReferenceCallback) com
 			SchemaProps: spec.SchemaProps{
 				Description: "NotebookStatus describes the current status of the notebook resource.",
 				Properties: map[string]spec.Schema{
+					"observedGeneration": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The generation observed by the controller.",
+							Type:        []string{"integer"},
+							Format:      "int64",
+						},
+					},
 					"phase": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Phase contains the current NotebookPhase of the notebook.",

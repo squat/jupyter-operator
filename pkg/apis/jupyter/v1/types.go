@@ -150,6 +150,9 @@ const (
 // NotebookStatus describes the current status of the notebook resource.
 // +k8s:openapi-gen=true
 type NotebookStatus struct {
+	// The generation observed by the controller.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// Phase contains the current NotebookPhase of the notebook.
 	Phase NotebookPhase `json:"phase"`
 }
@@ -238,10 +241,6 @@ func (n *Notebook) SetDefaults() bool {
 		n.Spec.Host = &emptyString
 		changed = true
 	}
-	if n.Spec.Packages == nil {
-		n.Spec.Packages = []string{}
-		changed = true
-	}
 	if n.Spec.Password == nil {
 		n.Spec.Password = &emptyString
 		changed = true
@@ -252,10 +251,6 @@ func (n *Notebook) SetDefaults() bool {
 	}
 	if n.Spec.TLS == nil {
 		n.Spec.TLS = &defaultTLS
-		changed = true
-	}
-	if n.Spec.Users == nil {
-		n.Spec.Users = []string{}
 		changed = true
 	}
 	return changed

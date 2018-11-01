@@ -13,12 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type notebookResource struct {
-	reconcile func() error
-	wait      func() error
-	resource  string
-}
-
 func (c *Controller) reconcileNotebookResources(n *jupyterv1.Notebook) error {
 	rs := c.reconcilers(n)
 
@@ -37,7 +31,6 @@ func (c *Controller) reconcileNotebookResources(n *jupyterv1.Notebook) error {
 						return
 					}
 					c.logger.Debugf("%s for %s is already reconciled", r.resourceType, n.Name)
-					*err = nil
 				}
 				c.logger.Infof("reconciled %s for %s", r.resourceType, n.Name)
 			}
