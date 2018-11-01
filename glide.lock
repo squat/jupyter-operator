@@ -1,5 +1,5 @@
 hash: b801682635586887c52da25d8eb4c3d013616b85f93b8fe2694d0510f7fe6bbf
-updated: 2018-10-19T15:03:03.664208808+02:00
+updated: 2018-11-01T20:46:00.638172679+01:00
 imports:
 - name: github.com/ant31/crd-validation
   version: 38f6a293f140402953f884b015014e0cd519bbb3
@@ -20,7 +20,7 @@ imports:
 - name: github.com/go-openapi/jsonreference
   version: 13c6e3589ad90f49bd3e3bbe2c2cb3d7a4142272
 - name: github.com/go-openapi/spec
-  version: 7abd5745472fff5eb3685386d5fb8bf38683154d
+  version: 1de3e0542de65ad8d75452a595886fdd0befb363
 - name: github.com/go-openapi/swag
   version: f3f9494671f93fcff853e3c6e9e948b3eb71e590
 - name: github.com/go-test/deep
@@ -58,10 +58,6 @@ imports:
   version: a0d98a5f288019575c6d1f4bb1573fef2d1fcdc4
   subpackages:
   - simplelru
-- name: github.com/hashicorp/terraform
-  version: 05291ab9822dd794b8ad61a902af832898618d99
-  subpackages:
-  - helper/mutexkv
 - name: github.com/imdario/mergo
   version: 9316a62528ac99aaecb4e47eadd6dc8aa6533d58
 - name: github.com/json-iterator/go
@@ -91,7 +87,7 @@ imports:
 - name: github.com/Sirupsen/logrus
   version: 081307d9bc1364753142d5962fc1d795c742baaf
 - name: github.com/spf13/pflag
-  version: 9a97c102cda95a86cec2345a6f09f55a939babf5
+  version: 583c0c0531f06d5278b7d917446061adc344b5cd
 - name: github.com/squat/retry
   version: 4b5eb7bf879f65b3ba8c57f9f568782770019aca
 - name: golang.org/x/crypto
@@ -139,7 +135,7 @@ imports:
   subpackages:
   - rate
 - name: google.golang.org/appengine
-  version: 5bee14b453b4c71be47ec1781b0fa61c2ea182db
+  version: 12d5545dc1cfa6047a286d5e853841b6471f4c19
   subpackages:
   - internal
   - internal/base
@@ -244,6 +240,7 @@ imports:
   subpackages:
   - discovery
   - discovery/fake
+  - informers/apps/v1
   - informers/core/v1
   - informers/extensions/v1beta1
   - informers/internalinterfaces
@@ -280,6 +277,7 @@ imports:
   - kubernetes/typed/storage/v1
   - kubernetes/typed/storage/v1alpha1
   - kubernetes/typed/storage/v1beta1
+  - listers/apps/v1
   - listers/core/v1
   - listers/extensions/v1beta1
   - pkg/apis/clientauthentication
