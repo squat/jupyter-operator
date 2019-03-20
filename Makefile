@@ -1,6 +1,6 @@
 .PHONY: all push container clean container-name container-latest push-latest local fmt lint test vendor generate client deepcopy informer lister openapi
 
-BIN := jupyter-operator
+BINS := $(addprefix bin/,jupyter-operator)
 PROJECT := jupyter-operator
 PKG := github.com/squat/$(PROJECT)
 REGISTRY ?= index.docker.io
@@ -20,21 +20,19 @@ LD_FLAGS := -ldflags '-X $(PKG)/version.Version=$(VERSION)'
 SRC := $(shell find . -type f -name '*.go' -not -path "./vendor/*") pkg/clientset/versioned/typed/jupyter/v1/notebook.go pkg/apis/jupyter/v1/zz_generated.deepcopy.go pkg/informers/externalversions/jupyter/v1/notebook.go pkg/listers/jupyter/v1/notebook.go pkg/apis/jupyter/v1/openapi_generated.go
 GO_FILES ?= $$(find . -name '*.go' -not -path './vendor/*')
 GO_PKGS ?= $$(go list ./... | grep -v "$(PKG)/vendor")
-CODE_GENERATOR_VERSION := release-1.12
+CLIENT_GO_VERSION := release-11.0
+CODE_GENERATOR_VERSION := release-1.14
 CLIENT_GEN_BINARY:=$(GOPATH)/bin/client-gen
 DEEPCOPY_GEN_BINARY:=$(GOPATH)/bin/deepcopy-gen
 INFORMER_GEN_BINARY:=$(GOPATH)/bin/informer-gen
 LISTER_GEN_BINARY:=$(GOPATH)/bin/lister-gen
 OPENAPI_GEN_BINARY:=$(GOPATH)/bin/openapi-gen
 
-BUILD_IMAGE ?= golang:1.11.1-alpine
+BUILD_IMAGE ?= golang:1.12.1-alpine
 
 all: build
 
-build: bin/$(BIN)
-
-bin:
-	@mkdir -p bin
+build: $(BINS)
 
 generate: client deepcopy informer lister
 
@@ -89,7 +87,8 @@ pkg/apis/jupyter/v1/openapi_generated.go: pkg/apis/jupyter/v1/types.go $(OPENAPI
 	--go-header-file=.header
 	go fmt $@
 
-bin/$(BIN): $(SRC) glide.yaml bin
+$(BINS): $(SRC) glide.yaml
+	@mkdir -p bin
 	@echo "building: $@"
 	@docker run --rm \
 	    -u $$(id -u):$$(id -g) \
@@ -99,10 +98,11 @@ bin/$(BIN): $(SRC) glide.yaml bin
 	    $(BUILD_IMAGE) \
 	    /bin/sh -c " \
 	        GOOS=linux \
+	        GOCACHE=/go/src/$(PKG)/.cache \
 		CGO_ENABLED=0 \
-		go build -o bin/$(BIN) \
+		go build -o $@ \
 		    $(LD_FLAGS) \
-		    ./cmd/$(BIN)/... \
+		    ./cmd/$(@F)/... \
 	    "
 
 fmt:
@@ -128,13 +128,6 @@ lint:
 	fi
 
 test: lint
-
-local: $(SRC) glide.yaml bin
-	@GOOS=linux \
-	    CGO_ENABLED=0 \
-	    go build -o bin/$(BIN) \
-	    $(LD_FLAGS) \
-	    ./cmd/$(BIN)/...
 
 container: .container-$(VERSION) container-name
 .container-$(VERSION): bin/$(BIN) Dockerfile
@@ -193,7 +186,7 @@ $(LISTER_GEN_BINARY):
 	go install k8s.io/code-generator/cmd/lister-gen
 
 $(OPENAPI_GEN_BINARY):
-	go get -u -d k8s.io/code-generator/cmd/openapi-gen
+	go get -u -d k8s.io/client-go/kubernetes
 	go get -u -d k8s.io/kube-openapi/cmd/openapi-gen
-	cd $(GOPATH)/src/k8s.io/code-generator; git checkout $(CODE_GENERATOR_VERSION); export OPENAPI_GEN_VERSION=$$(grep kube-openapi Godeps/Godeps.json -A 1 | tail -n 1 | awk '{print $$2}' | tr -d '"'); cd $(GOPATH)/src/k8s.io/kube-openapi; git checkout $$OPENAPI_GEN_VERSION
+	cd $(GOPATH)/src/k8s.io/client-go; git checkout $(CLIENT_GO_VERSION); export OPENAPI_GEN_VERSION=$$(grep kube-openapi Godeps/Godeps.json -A 1 | tail -n 1 | awk '{print $$2}' | tr -d '"'); cd $(GOPATH)/src/k8s.io/kube-openapi; git checkout $$OPENAPI_GEN_VERSION
 	go install k8s.io/kube-openapi/cmd/openapi-gen
