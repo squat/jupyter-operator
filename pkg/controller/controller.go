@@ -34,6 +34,10 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
+const (
+	resyncPeriod = 5 * time.Minute
+)
+
 // Config is the configuration for a notebook controller.
 type Config struct {
 	CACert     *x509.Certificate
@@ -75,23 +79,23 @@ func New(cfg Config) *Controller {
 
 	indexer := cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}
 
-	informer := jupyterv1informers.NewNotebookInformer(controller.client.VersionedInterface(), cfg.Namespace, 0, indexer)
+	informer := jupyterv1informers.NewNotebookInformer(controller.client.VersionedInterface(), cfg.Namespace, resyncPeriod, indexer)
 	controller.notebookLister = jupyterv1listers.NewNotebookLister(informer.GetIndexer())
 	controller.informers[reflect.TypeOf(&jupyterv1.Notebook{})] = informer
 
-	informer = appsv1informers.NewStatefulSetInformer(controller.client, cfg.Namespace, 0, indexer)
+	informer = appsv1informers.NewStatefulSetInformer(controller.client, cfg.Namespace, resyncPeriod, indexer)
 	controller.statefulSetLister = appsv1listers.NewStatefulSetLister(informer.GetIndexer())
 	controller.informers[reflect.TypeOf(&appsv1.StatefulSet{})] = informer
 
-	informer = v1informers.NewSecretInformer(controller.client, cfg.Namespace, 0, indexer)
+	informer = v1informers.NewSecretInformer(controller.client, cfg.Namespace, resyncPeriod, indexer)
 	controller.secretLister = v1listers.NewSecretLister(informer.GetIndexer())
 	controller.informers[reflect.TypeOf(&v1.Secret{})] = informer
 
-	informer = v1informers.NewServiceInformer(controller.client, cfg.Namespace, 0, indexer)
+	informer = v1informers.NewServiceInformer(controller.client, cfg.Namespace, resyncPeriod, indexer)
 	controller.serviceLister = v1listers.NewServiceLister(informer.GetIndexer())
 	controller.informers[reflect.TypeOf(&v1.Service{})] = informer
 
-	informer = v1beta1informers.NewIngressInformer(controller.client, cfg.Namespace, 0, indexer)
+	informer = v1beta1informers.NewIngressInformer(controller.client, cfg.Namespace, resyncPeriod, indexer)
 	controller.ingressLister = v1beta1listers.NewIngressLister(informer.GetIndexer())
 	controller.informers[reflect.TypeOf(&v1beta1.Ingress{})] = informer
 
@@ -111,7 +115,7 @@ func (c *Controller) Run(stop <-chan struct{}, workers int) error {
 		go i.Run(stop)
 	}
 
-	if err := c.watch(stop); err != nil {
+	if err := c.wait(stop); err != nil {
 		return fmt.Errorf("failed to start controller: %v", err)
 	}
 
@@ -214,7 +218,7 @@ func (c *Controller) addHandlers() {
 	}
 }
 
-func (c *Controller) watch(stop <-chan struct{}) error {
+func (c *Controller) wait(stop <-chan struct{}) error {
 	ok := true
 	for it := range c.informers {
 		if !cache.WaitForCacheSync(stop, c.informers[it].HasSynced) {
