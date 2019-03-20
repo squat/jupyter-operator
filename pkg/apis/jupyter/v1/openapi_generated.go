@@ -347,13 +347,6 @@ func schema_pkg_apis_jupyter_v1_NotebookSpec(ref common.ReferenceCallback) commo
 							Ref:         ref("k8s.io/api/extensions/v1beta1.IngressBackend"),
 						},
 					},
-					"owner": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Owner is the user who owns the notebook.",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
 					"packages": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Packages is a list of additional packages that should be installed on the notebook via \"conda install\".",
@@ -389,22 +382,8 @@ func schema_pkg_apis_jupyter_v1_NotebookSpec(ref common.ReferenceCallback) commo
 							Format:      "",
 						},
 					},
-					"users": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Users is a list of users who should have access to the notebook.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Type:   []string{"string"},
-										Format: "",
-									},
-								},
-							},
-						},
-					},
 				},
-				Required: []string{"gpu", "owner"},
+				Required: []string{"gpu"},
 			},
 		},
 		Dependencies: []string{

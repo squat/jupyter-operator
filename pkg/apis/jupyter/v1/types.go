@@ -58,8 +58,6 @@ type NotebookSpec struct {
 	// Defaults to the notebook service created by the operator.
 	// +optional
 	Ingress *extensionsv1beta1.IngressBackend `json:"ingress,omitempty"`
-	// Owner is the user who owns the notebook.
-	Owner string `json:"owner"`
 	// Packages is a list of additional packages that should be installed
 	// on the notebook via "conda install".
 	// +optional
@@ -74,8 +72,6 @@ type NotebookSpec struct {
 	// Defaults to "self-signed".
 	// +optional
 	TLS *NotebookTLS `json:"tls,omitempty"`
-	// Users is a list of users who should have access to the notebook.
-	Users []string `json:"users,omitempty"`
 }
 
 // NotebookPhase is a label for the condition of a notebook at the current time.
@@ -197,14 +193,6 @@ func (n *Notebook) Validate() error {
 	if n.Spec.Ingress != nil {
 		if (n.Spec.Ingress.ServiceName == "") != (n.Spec.Ingress.ServicePort.String() == "") {
 			return errors.New("ingress service name and port must be both defined or both undefined")
-		}
-	}
-	if n.Spec.Owner == "" {
-		return errors.New("owner must be a valid username")
-	}
-	for _, user := range n.Spec.Users {
-		if user == "" {
-			return errors.New("users must be a list of valid usernames")
 		}
 	}
 	var validPackageName = regexp.MustCompile(`^[a-zA-Z0-9-_]+$`)

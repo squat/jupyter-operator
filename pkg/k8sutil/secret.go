@@ -20,7 +20,7 @@ import (
 
 // CalculateSecret creates a new k8s secret struct configured for the given notebook.
 func CalculateSecret(n *jupyterv1.Notebook, caCert *x509.Certificate, caKey *rsa.PrivateKey) *corev1.Secret {
-	labels := notebookLabels(n.Name, n.Spec.Owner)
+	labels := notebookLabels(n.Name)
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        resourceName(n.Name),

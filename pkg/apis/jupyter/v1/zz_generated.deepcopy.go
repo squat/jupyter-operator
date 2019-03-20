@@ -126,11 +126,6 @@ func (in *NotebookSpec) DeepCopyInto(out *NotebookSpec) {
 		*out = new(NotebookTLS)
 		**out = **in
 	}
-	if in.Users != nil {
-		in, out := &in.Users, &out.Users
-		*out = make([]string, len(*in))
-		copy(*out, *in)
-	}
 	return
 }
 

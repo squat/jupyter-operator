@@ -17,7 +17,7 @@ const tolerateUnreadyEndpointsAnnotation = "service.alpha.kubernetes.io/tolerate
 
 // CalculateService creates a new k8s service struct configured for the given notebook.
 func CalculateService(n *jupyterv1.Notebook) *corev1.Service {
-	labels := notebookLabels(n.Name, n.Spec.Owner)
+	labels := notebookLabels(n.Name)
 	svc := corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      resourceName(n.Name),
@@ -35,7 +35,7 @@ func CalculateService(n *jupyterv1.Notebook) *corev1.Service {
 					Protocol: corev1.ProtocolTCP,
 				},
 			},
-			Selector: addMatchLabels(make(map[string]string), n.Name, n.Spec.Owner),
+			Selector: addMatchLabels(make(map[string]string), n.Name),
 			Type:     corev1.ServiceTypeClusterIP,
 		},
 	}

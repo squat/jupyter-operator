@@ -18,8 +18,7 @@ const (
 
 	managedByOperatorLabel      = "managed-by"
 	managedByOperatorLabelValue = "jupyter-operator"
-	notebookLabel               = "squat.ai/notebook"
-	ownerLabel                  = "squat.ai/owner"
+	notebookLabel               = "jupyter.squat.ai/notebook"
 )
 
 func resourceName(name string) string {
@@ -39,16 +38,15 @@ func isManagedByOperator(labels map[string]string) bool {
 	return false
 }
 
-func addMatchLabels(labels map[string]string, name, owner string) map[string]string {
+func addMatchLabels(labels map[string]string, name string) map[string]string {
 	labels[notebookLabel] = name
-	labels[ownerLabel] = owner
 	return labels
 }
 
-func notebookLabels(name, owner string) map[string]string {
+func notebookLabels(name string) map[string]string {
 	l := make(map[string]string)
 	addManagedByOperatorLabels(l)
-	addMatchLabels(l, name, owner)
+	addMatchLabels(l, name)
 	return l
 }
 
