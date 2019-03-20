@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	jupyterv1 "github.com/squat/jupyter-operator/pkg/apis/jupyter/v1"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/go-test/deep"
 	"github.com/squat/retry"
 	appsv1 "k8s.io/api/apps/v1"

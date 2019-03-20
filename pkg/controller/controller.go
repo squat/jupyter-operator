@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/go-test/deep"
 	jupyterv1 "github.com/squat/jupyter-operator/pkg/apis/jupyter/v1"
 	"github.com/squat/jupyter-operator/pkg/client"
 	jupyterv1informers "github.com/squat/jupyter-operator/pkg/informers/externalversions/jupyter/v1"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	crdutils "github.com/ant31/crd-validation/pkg"
+	"github.com/go-test/deep"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"

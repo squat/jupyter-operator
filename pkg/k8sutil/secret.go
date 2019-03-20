@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Sirupsen/logrus"
-	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
 	jupyterv1 "github.com/squat/jupyter-operator/pkg/apis/jupyter/v1"
 	"github.com/squat/jupyter-operator/pkg/tls"
 
+	"github.com/Sirupsen/logrus"
+	"github.com/kubernetes-incubator/bootkube/pkg/tlsutil"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

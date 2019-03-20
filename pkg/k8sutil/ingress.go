@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	jupyterv1 "github.com/squat/jupyter-operator/pkg/apis/jupyter/v1"
-	"github.com/squat/retry"
 
+	"github.com/Sirupsen/logrus"
+	"github.com/squat/retry"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
