@@ -1,14 +1,19 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
+  labels:
+    app.kubernetes.io/name: jupyter-operator
   name: jupyter-operator
   namespace: jupyter
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jupyter-operator
   template:
     metadata:
       labels:
-        name: jupyter-operator
+        app.kubernetes.io/name: jupyter-operator
     spec:
       containers:
       - name: jupyter-operator
