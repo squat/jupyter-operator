@@ -68,8 +68,11 @@ func CreateOrUpdateSecret(c v1client.SecretInterface, l v1listers.SecretLister, 
 			if err = cert.CheckSignatureFrom(caCert); err == nil {
 				secret.Data[corev1.TLSCertKey] = s.Data[corev1.TLSCertKey]
 				secret.Data[corev1.TLSPrivateKeyKey] = s.Data[corev1.TLSPrivateKeyKey]
+			} else {
 				logger.Print("x509 certificate was not signed by this operator's CA; recreating certificates")
 			}
+		} else {
+			logger.Print("failed to parse old certificate; recreating certificates")
 		}
 	}
 	secret.ResourceVersion = s.ResourceVersion
