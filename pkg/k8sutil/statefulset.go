@@ -135,7 +135,6 @@ func CalculateStatefulSet(n *jupyterv1.Notebook) *appsv1.StatefulSet {
 			Volumes:                       volumes,
 		},
 	}
-	addOwnerRefToObject(pod.GetObjectMeta(), n.AsOwner())
 	var replicas int32 = 1
 	sts := appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -152,6 +151,7 @@ func CalculateStatefulSet(n *jupyterv1.Notebook) *appsv1.StatefulSet {
 			Template:    pod,
 		},
 	}
+	addOwnerRefToObject(sts.GetObjectMeta(), n.AsOwner())
 	return &sts
 }
 
